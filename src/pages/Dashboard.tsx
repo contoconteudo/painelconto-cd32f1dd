@@ -3,6 +3,8 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ProgressCard } from "@/components/dashboard/ProgressCard";
 import { PipelineCard } from "@/components/dashboard/PipelineCard";
 import { ObjectivesCard } from "@/components/dashboard/ObjectivesCard";
+import { useLeads } from "@/hooks/useLeads";
+import { useClients } from "@/hooks/useClients";
 import {
   DollarSign,
   Users,
@@ -13,35 +15,57 @@ import {
 } from "lucide-react";
 
 export default function Dashboard() {
+  const { getPipelineStats } = useLeads();
+  const { getStats: getClientStats } = useClients();
+
+  const leadStats = getPipelineStats();
+  const clientStats = getClientStats();
+
+  // Bimonthly goal calculation (example: current month revenue goal)
+  const bimonthlyTarget = 35000;
+  const bimonthlyProgress = leadStats.wonValue + (clientStats.totalMRR * 0.5); // Simplified calculation
+
   return (
     <AppLayout title="Dashboard" subtitle="Visão geral das metas e operação comercial">
       {/* KPI Cards - Focados em Metas e CRM */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Leads em Negociação"
-          value="8"
-          trend={{ value: "+3 esta semana", isPositive: true }}
+          value={leadStats.inNegotiation.toString()}
+          trend={{ 
+            value: `${leadStats.totalLeads} no pipeline total`, 
+            isPositive: true 
+          }}
           icon={<Users className="h-5 w-5" />}
           iconClassName="gradient-primary text-primary-foreground"
         />
         <StatCard
           title="Valor em Pipeline"
-          value="R$ 24.800"
-          trend={{ value: "+15% vs mês anterior", isPositive: true }}
+          value={`R$ ${leadStats.totalValue.toLocaleString('pt-BR')}`}
+          trend={{ 
+            value: `${leadStats.wonCount} fechado(s)`, 
+            isPositive: true 
+          }}
           icon={<DollarSign className="h-5 w-5" />}
           iconClassName="bg-success/10 text-success"
         />
         <StatCard
           title="Propostas Enviadas"
-          value="5"
-          trend={{ value: "2 aguardando resposta", isPositive: true }}
+          value={leadStats.proposalsSent.toString()}
+          trend={{ 
+            value: "Aguardando resposta", 
+            isPositive: true 
+          }}
           icon={<FileText className="h-5 w-5" />}
           iconClassName="bg-warning/10 text-warning"
         />
         <StatCard
           title="Taxa Conversão"
-          value="23%"
-          trend={{ value: "-5% vs média", isPositive: false }}
+          value={`${leadStats.conversionRate}%`}
+          trend={{ 
+            value: leadStats.conversionRate >= 20 ? "Acima da média" : "Abaixo da média", 
+            isPositive: leadStats.conversionRate >= 20 
+          }}
           icon={<TrendingUp className="h-5 w-5" />}
           iconClassName="bg-primary/10 text-primary"
         />
@@ -51,8 +75,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <ProgressCard
           title="Meta Bimestral"
-          current={25000}
-          target={35000}
+          current={Math.round(bimonthlyProgress)}
+          target={bimonthlyTarget}
           unit="R$ "
           className="lg:col-span-1"
         />
@@ -79,12 +103,19 @@ export default function Dashboard() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Novos Clientes</p>
-                <p className="text-xs text-muted-foreground">Meta: 3 clientes | Atual: 2</p>
+                <p className="text-xs text-muted-foreground">
+                  Meta: 3 clientes | Atual: {leadStats.wonCount}
+                </p>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-foreground">67%</p>
+                <p className="text-lg font-bold text-foreground">
+                  {Math.round((leadStats.wonCount / 3) * 100)}%
+                </p>
                 <div className="w-16 h-1.5 rounded-full bg-muted mt-1">
-                  <div className="h-full rounded-full bg-success" style={{ width: '67%' }} />
+                  <div 
+                    className="h-full rounded-full bg-success" 
+                    style={{ width: `${Math.min((leadStats.wonCount / 3) * 100, 100)}%` }} 
+                  />
                 </div>
               </div>
             </div>
@@ -95,12 +126,19 @@ export default function Dashboard() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Faturamento Vendas</p>
-                <p className="text-xs text-muted-foreground">Meta: R$ 15k | Atual: R$ 11k</p>
+                <p className="text-xs text-muted-foreground">
+                  Meta: R$ 15k | Atual: R$ {(leadStats.wonValue / 1000).toFixed(1)}k
+                </p>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-foreground">73%</p>
+                <p className="text-lg font-bold text-foreground">
+                  {Math.round((leadStats.wonValue / 15000) * 100)}%
+                </p>
                 <div className="w-16 h-1.5 rounded-full bg-muted mt-1">
-                  <div className="h-full rounded-full bg-primary" style={{ width: '73%' }} />
+                  <div 
+                    className="h-full rounded-full bg-primary" 
+                    style={{ width: `${Math.min((leadStats.wonValue / 15000) * 100, 100)}%` }} 
+                  />
                 </div>
               </div>
             </div>
@@ -111,12 +149,19 @@ export default function Dashboard() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Taxa de Conversão</p>
-                <p className="text-xs text-muted-foreground">Meta: 30% | Atual: 23%</p>
+                <p className="text-xs text-muted-foreground">
+                  Meta: 30% | Atual: {leadStats.conversionRate}%
+                </p>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-foreground">77%</p>
+                <p className="text-lg font-bold text-foreground">
+                  {Math.round((leadStats.conversionRate / 30) * 100)}%
+                </p>
                 <div className="w-16 h-1.5 rounded-full bg-muted mt-1">
-                  <div className="h-full rounded-full bg-warning" style={{ width: '77%' }} />
+                  <div 
+                    className="h-full rounded-full bg-warning" 
+                    style={{ width: `${Math.min((leadStats.conversionRate / 30) * 100, 100)}%` }} 
+                  />
                 </div>
               </div>
             </div>
