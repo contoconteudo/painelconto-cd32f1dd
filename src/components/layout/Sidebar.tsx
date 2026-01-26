@@ -4,7 +4,7 @@ import {
   Target,
   Users,
   Briefcase,
-  Wallet,
+  
   Settings,
   ChevronDown,
   Building2,
@@ -16,7 +16,6 @@ const navigation = [
   { name: "Estratégia", href: "/estrategia", icon: Target },
   { name: "CRM", href: "/crm", icon: Users },
   { name: "Clientes", href: "/clientes", icon: Briefcase },
-  { name: "Financeiro", href: "/financeiro", icon: Wallet },
   { name: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 

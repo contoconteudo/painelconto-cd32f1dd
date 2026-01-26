@@ -7,7 +7,7 @@ import Index from "./pages/Index";
 import Estrategia from "./pages/Estrategia";
 import CRM from "./pages/CRM";
 import Clientes from "./pages/Clientes";
-import Financeiro from "./pages/Financeiro";
+
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
@@ -24,7 +24,7 @@ const App = () => (
           <Route path="/estrategia" element={<Estrategia />} />
           <Route path="/crm" element={<CRM />} />
           <Route path="/clientes" element={<Clientes />} />
-          <Route path="/financeiro" element={<Financeiro />} />
+          
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
