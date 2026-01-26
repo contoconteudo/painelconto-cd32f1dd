@@ -4,8 +4,6 @@ import {
   Target,
   Users,
   Briefcase,
-  FolderKanban,
-  BarChart3,
   Wallet,
   Settings,
   ChevronDown,
@@ -18,8 +16,6 @@ const navigation = [
   { name: "Estratégia", href: "/estrategia", icon: Target },
   { name: "CRM", href: "/crm", icon: Users },
   { name: "Clientes", href: "/clientes", icon: Briefcase },
-  { name: "Projetos", href: "/projetos", icon: FolderKanban },
-  { name: "Relatórios", href: "/relatorios", icon: BarChart3 },
   { name: "Financeiro", href: "/financeiro", icon: Wallet },
   { name: "Configurações", href: "/configuracoes", icon: Settings },
 ];
