@@ -53,6 +53,15 @@ export interface Lead {
 // Tipos para Clientes
 export type ClientStatus = "active" | "inactive" | "churn";
 
+export interface NPSRecord {
+  id: string;
+  month: number; // 1-12
+  year: number;
+  score: number;
+  notes: string;
+  recordedAt: string;
+}
+
 export interface Client {
   id: string;
   company: string;
@@ -63,7 +72,7 @@ export interface Client {
   package: string;
   monthlyValue: number;
   status: ClientStatus;
-  nps: number;
+  npsHistory: NPSRecord[];
   startDate: string;
   notes: string;
 }

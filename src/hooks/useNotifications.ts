@@ -65,10 +65,15 @@ export function useNotifications() {
       });
     }
 
-    // Check for clients with low NPS
-    const lowNpsClients = clients.filter(
-      (client) => client.nps <= 6 && client.status === "active"
-    );
+    // Check for clients with low NPS (latest score)
+    const lowNpsClients = clients.filter((client) => {
+      if (client.status !== "active" || client.npsHistory.length === 0) return false;
+      const latestNPS = client.npsHistory.sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return b.month - a.month;
+      })[0];
+      return latestNPS.score <= 6;
+    });
     if (lowNpsClients.length > 0) {
       alerts.push({
         id: "low-nps",
