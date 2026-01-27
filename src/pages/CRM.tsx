@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Flame, Thermometer, Snowflake, Plus, Phone, Mail, MoreHorizontal } from "lucide-react";
+import { Flame, Thermometer, Snowflake, Plus, Phone, Mail, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useLeads } from "@/hooks/useLeads";
 import { LeadForm } from "@/components/crm/LeadForm";
 import { LeadDetail } from "@/components/crm/LeadDetail";
-import { Lead, LeadStage } from "@/types";
+import { Lead, LeadStage, LeadTemperature } from "@/types";
+import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const stageConfig: Record<LeadStage, { name: string; color: string }> = {
   new: { name: "Novo", color: "bg-muted-foreground" },
@@ -18,6 +26,12 @@ const stageConfig: Record<LeadStage, { name: string; color: string }> = {
   negotiation: { name: "Negociação", color: "bg-success" },
   won: { name: "Ganho", color: "bg-success" },
   lost: { name: "Perdido", color: "bg-destructive" },
+};
+
+const temperatureLabels: Record<LeadTemperature, string> = {
+  hot: "Quente",
+  warm: "Morno",
+  cold: "Frio",
 };
 
 const TemperatureIcon = ({ temp }: { temp: "hot" | "warm" | "cold" }) => {
@@ -123,6 +137,24 @@ export default function CRM() {
   const [showDetail, setShowDetail] = useState(false);
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<LeadStage | null>(null);
+  
+  // Filters
+  const [temperatureFilter, setTemperatureFilter] = useState<LeadTemperature | "all">("all");
+  const [originFilter, setOriginFilter] = useState<string>("all");
+
+  // Get unique origins from leads
+  const uniqueOrigins = useMemo(() => {
+    const origins = new Set(leads.map(lead => lead.origin).filter(Boolean));
+    return Array.from(origins).sort();
+  }, [leads]);
+
+  // Check if any filter is active
+  const hasActiveFilters = temperatureFilter !== "all" || originFilter !== "all";
+
+  const clearFilters = () => {
+    setTemperatureFilter("all");
+    setOriginFilter("all");
+  };
 
   const handleDragStart = (leadId: string) => {
     setDraggedLeadId(leadId);
@@ -146,7 +178,13 @@ export default function CRM() {
   const handleDrop = (e: React.DragEvent, stage: LeadStage) => {
     e.preventDefault();
     if (draggedLeadId) {
-      moveLeadToStage(draggedLeadId, stage);
+      const lead = leads.find(l => l.id === draggedLeadId);
+      if (lead && lead.stage !== stage) {
+        moveLeadToStage(draggedLeadId, stage);
+        toast.success(`Lead movido para ${stageConfig[stage].name}`, {
+          description: `${lead.name} foi movido com sucesso.`,
+        });
+      }
     }
     setDraggedLeadId(null);
     setDragOverStage(null);
@@ -154,8 +192,23 @@ export default function CRM() {
 
   const stats = getPipelineStats();
   
-  // Show only active stages in the pipeline (exclude 'lost')
+  // Pipeline stages
   const pipelineStages: LeadStage[] = ["new", "contact", "meeting_scheduled", "meeting_done", "proposal", "followup", "negotiation", "won", "lost"];
+
+  // Filter leads by stage with additional filters
+  const getFilteredLeadsByStage = (stage: LeadStage) => {
+    let stageLeads = getLeadsByStage(stage);
+    
+    if (temperatureFilter !== "all") {
+      stageLeads = stageLeads.filter(lead => lead.temperature === temperatureFilter);
+    }
+    
+    if (originFilter !== "all") {
+      stageLeads = stageLeads.filter(lead => lead.origin === originFilter);
+    }
+    
+    return stageLeads;
+  };
 
   const handleAddClick = (stage: LeadStage) => {
     setCreateFormStage(stage);
@@ -193,11 +246,46 @@ export default function CRM() {
         </Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex items-center gap-3 mb-4">
+        <Filter className="h-4 w-4 text-muted-foreground" />
+        <Select value={temperatureFilter} onValueChange={(value) => setTemperatureFilter(value as LeadTemperature | "all")}>
+          <SelectTrigger className="w-[140px] h-9">
+            <SelectValue placeholder="Temperatura" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="hot">🔥 Quente</SelectItem>
+            <SelectItem value="warm">🌡️ Morno</SelectItem>
+            <SelectItem value="cold">❄️ Frio</SelectItem>
+          </SelectContent>
+        </Select>
+        
+        <Select value={originFilter} onValueChange={setOriginFilter}>
+          <SelectTrigger className="w-[160px] h-9">
+            <SelectValue placeholder="Origem" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas origens</SelectItem>
+            {uniqueOrigins.map((origin) => (
+              <SelectItem key={origin} value={origin}>{origin}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 px-2 text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4 mr-1" />
+            Limpar
+          </Button>
+        )}
+      </div>
+
       {/* Kanban Board */}
       <div className="flex gap-4 overflow-x-auto pb-4">
         {pipelineStages.map((stageKey) => {
           const config = stageConfig[stageKey];
-          const stageLeads = getLeadsByStage(stageKey);
+          const stageLeads = getFilteredLeadsByStage(stageKey);
           const stageTotal = stageLeads.reduce((sum, lead) => sum + lead.value, 0);
           
           return (
