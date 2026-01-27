@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { User, Shield, Package, Link, Database, Bell, Palette } from "lucide-react";
+import { User, Link, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -12,28 +12,10 @@ const settingsSections = [
     icon: User,
   },
   {
-    id: "security",
-    title: "Segurança",
-    description: "Configurações de autenticação e políticas de acesso",
-    icon: Shield,
-  },
-  {
-    id: "packages",
-    title: "Pacotes & Serviços",
-    description: "Cadastro de pacotes e precificação",
-    icon: Package,
-  },
-  {
     id: "integrations",
     title: "Integrações",
     description: "Conecte ferramentas externas (Meta, Analytics, n8n)",
     icon: Link,
-  },
-  {
-    id: "database",
-    title: "Banco de Dados",
-    description: "Backup, exportação e manutenção",
-    icon: Database,
   },
   {
     id: "notifications",
@@ -74,14 +56,6 @@ export default function Configuracoes() {
         <h3 className="text-base font-semibold text-foreground mb-4">Configurações Rápidas</h3>
         
         <div className="space-y-4">
-          <div className="flex items-center justify-between py-3 border-b border-border/60">
-            <div>
-              <p className="text-sm font-medium text-foreground">Notificações por Email</p>
-              <p className="text-xs text-muted-foreground">Receba alertas de entregas e leads</p>
-            </div>
-            <Switch defaultChecked />
-          </div>
-          
           <div className="flex items-center justify-between py-3 border-b border-border/60">
             <div>
               <p className="text-sm font-medium text-foreground">Alertas de Atraso</p>
