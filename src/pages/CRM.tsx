@@ -27,7 +27,19 @@ const TemperatureIcon = ({ temp }: { temp: "hot" | "warm" | "cold" }) => {
   return <Icon className={cn("h-3.5 w-3.5", className)} />;
 };
 
-function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
+function LeadCard({ 
+  lead, 
+  onClick,
+  onDragStart,
+  onDragEnd,
+  isDragging 
+}: { 
+  lead: Lead; 
+  onClick: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  isDragging: boolean;
+}) {
   const daysSinceContact = Math.floor(
     (new Date().getTime() - new Date(lead.lastContact).getTime()) / (1000 * 60 * 60 * 24)
   );
@@ -38,8 +50,17 @@ function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
 
   return (
     <div 
-      className="bg-card rounded-lg p-3 border border-border/60 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 cursor-pointer group"
+      className={cn(
+        "bg-card rounded-lg p-3 border border-border/60 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 cursor-grab group",
+        isDragging && "opacity-50 cursor-grabbing ring-2 ring-primary"
+      )}
       onClick={onClick}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
@@ -97,6 +118,36 @@ export default function CRM() {
   const [createFormStage, setCreateFormStage] = useState<LeadStage>("new");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<LeadStage | null>(null);
+
+  const handleDragStart = (leadId: string) => {
+    setDraggedLeadId(leadId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedLeadId(null);
+    setDragOverStage(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, stage: LeadStage) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverStage(stage);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverStage(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, stage: LeadStage) => {
+    e.preventDefault();
+    if (draggedLeadId) {
+      moveLeadToStage(draggedLeadId, stage);
+    }
+    setDraggedLeadId(null);
+    setDragOverStage(null);
+  };
 
   const stats = getPipelineStats();
   
@@ -163,12 +214,23 @@ export default function CRM() {
               </div>
 
               {/* Cards */}
-              <div className="space-y-2 min-h-[200px] p-2 rounded-lg bg-muted/30">
+              <div 
+                className={cn(
+                  "space-y-2 min-h-[200px] p-2 rounded-lg bg-muted/30 transition-all duration-200",
+                  dragOverStage === stageKey && "ring-2 ring-primary bg-primary/10"
+                )}
+                onDragOver={(e) => handleDragOver(e, stageKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, stageKey)}
+              >
                 {stageLeads.map((lead) => (
                   <LeadCard 
                     key={lead.id} 
                     lead={lead} 
                     onClick={() => handleLeadClick(lead)}
+                    onDragStart={() => handleDragStart(lead.id)}
+                    onDragEnd={handleDragEnd}
+                    isDragging={draggedLeadId === lead.id}
                   />
                 ))}
                 <button 
