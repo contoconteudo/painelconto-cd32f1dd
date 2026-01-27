@@ -5,86 +5,8 @@ import { useLeads } from "./useLeads";
 import { useClients } from "./useClients";
 import { STORAGE_KEYS } from "@/lib/constants";
 
-// Dados iniciais de exemplo
-const initialObjectives: Objective[] = [
-  {
-    id: "1",
-    name: "Aumentar faturamento em 67%",
-    description: "Crescimento de R$ 30.000 para R$ 50.000/mês",
-    valueType: "financial",
-    targetValue: 50000,
-    currentValue: 36000,
-    deadline: "2026-12-31",
-    status: "on_track",
-    createdAt: "2026-01-01",
-    progressLogs: [
-      { id: "log1", month: 1, year: 2026, date: "2026-01-15", value: 32000, description: "Fechamento de janeiro" },
-      { id: "log2", month: 1, year: 2026, date: "2026-01-25", value: 36000, description: "Novo cliente Tech Solutions" },
-    ],
-    isCommercial: false,
-    dataSources: [],
-  },
-  {
-    id: "2",
-    name: "Conquistar 5 novos clientes Premium",
-    description: "Clientes com ticket médio acima de R$ 5.500",
-    valueType: "quantity",
-    targetValue: 5,
-    currentValue: 3,
-    deadline: "2026-12-31",
-    status: "on_track",
-    createdAt: "2026-01-01",
-    progressLogs: [
-      { id: "log3", month: 1, year: 2026, date: "2026-01-10", value: 1, description: "Cliente Tech Solutions" },
-      { id: "log4", month: 1, year: 2026, date: "2026-01-18", value: 2, description: "Cliente Fashion Store" },
-      { id: "log5", month: 1, year: 2026, date: "2026-01-22", value: 3, description: "Cliente Clínica Premium" },
-    ],
-    isCommercial: false,
-    dataSources: [],
-  },
-  {
-    id: "3",
-    name: "Aumentar margem para 75%",
-    description: "Otimização de processos e redução de custos",
-    valueType: "percentage",
-    targetValue: 75,
-    currentValue: 68,
-    deadline: "2026-12-31",
-    status: "at_risk",
-    createdAt: "2026-01-01",
-    progressLogs: [],
-    isCommercial: false,
-    dataSources: [],
-  },
-  {
-    id: "4",
-    name: "Montar equipe de 5 pessoas",
-    description: "Contratação de Designer Sr e Analista de Mídia",
-    valueType: "quantity",
-    targetValue: 5,
-    currentValue: 2,
-    deadline: "2026-06-30",
-    status: "behind",
-    createdAt: "2026-01-01",
-    progressLogs: [],
-    isCommercial: false,
-    dataSources: [],
-  },
-  {
-    id: "5",
-    name: "Meta de Faturamento Comercial",
-    description: "Faturamento total de novas vendas e clientes ativos",
-    valueType: "financial",
-    targetValue: 100000,
-    currentValue: 0, // Será calculado automaticamente
-    deadline: "2026-12-31",
-    status: "behind",
-    createdAt: "2026-01-01",
-    progressLogs: [],
-    isCommercial: true,
-    dataSources: ["crm", "clients"],
-  },
-];
+// Dados iniciais vazios - pronto para dados reais
+const initialObjectives: Objective[] = [];
 
 function calculateStatus(currentValue: number, targetValue: number, deadline: string): ObjectiveStatus {
   const progress = (currentValue / targetValue) * 100;
