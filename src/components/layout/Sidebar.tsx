@@ -1,14 +1,16 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Target,
   Users,
   Briefcase,
   Settings,
-  ChevronDown,
+  LogOut,
   Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -20,6 +22,26 @@ const navigation = [
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      // Clear localStorage data on logout
+      localStorage.removeItem("conto-leads");
+      localStorage.removeItem("conto-clients");
+      localStorage.removeItem("conto-objectives");
+      toast.success("Logout realizado com sucesso!");
+      navigate("/login");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao fazer logout");
+    }
+  };
+
+  const userInitials = user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : "??";
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
@@ -56,16 +78,23 @@ export function Sidebar() {
         </nav>
 
         {/* User section */}
-        <div className="border-t border-sidebar-border p-3">
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent transition-colors">
+        <div className="border-t border-sidebar-border p-3 space-y-2">
+          <div className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-sidebar-foreground/80">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent text-sm font-medium text-sidebar-primary">
-              AR
+              {userInitials}
             </div>
-            <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-sidebar-foreground">Arone</p>
-              <p className="text-xs text-sidebar-foreground/50">Admin</p>
+            <div className="flex-1 text-left min-w-0">
+              <p className="text-sm font-medium text-sidebar-foreground truncate">
+                {user?.email || "Usuário"}
+              </p>
             </div>
-            <ChevronDown className="h-4 w-4 text-sidebar-foreground/50" />
+          </div>
+          <button
+            onClick={handleSignOut}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <LogOut className="h-5 w-5 flex-shrink-0" />
+            <span>Sair</span>
           </button>
         </div>
       </div>
