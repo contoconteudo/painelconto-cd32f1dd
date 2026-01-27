@@ -20,11 +20,16 @@ export default function Login() {
 
     try {
       if (isSignUp) {
+        // Use the production URL for email redirects
+        const redirectUrl = import.meta.env.PROD 
+          ? "https://tempo-fly.lovable.app" 
+          : window.location.origin;
+        
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: redirectUrl,
           },
         });
 
