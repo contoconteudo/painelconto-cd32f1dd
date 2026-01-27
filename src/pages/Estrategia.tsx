@@ -39,7 +39,7 @@ const valueTypeConfig: Record<ObjectiveValueType, { prefix: string; suffix: stri
 };
 
 export default function Estrategia() {
-  const { objectives, addObjective, updateObjective, deleteObjective, addProgressLog, updateProgressLog, getProgress, getStats } = useObjectives();
+  const { objectives, addObjective, updateObjective, deleteObjective, addProgressLog, updateProgressLog, deleteProgressLog, getProgress, getStats } = useObjectives();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedObjective, setSelectedObjective] = useState<Objective | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -222,6 +222,7 @@ export default function Estrategia() {
         objective={selectedObjective}
         onAddProgress={addProgressLog}
         onUpdateProgress={updateProgressLog}
+        onDeleteProgress={deleteProgressLog}
         onUpdate={updateObjective}
         onDelete={deleteObjective}
       />

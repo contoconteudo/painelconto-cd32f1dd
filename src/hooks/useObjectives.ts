@@ -195,6 +195,40 @@ export function useObjectives() {
     [setObjectives]
   );
 
+  const deleteProgressLog = useCallback(
+    (objectiveId: string, month: number, year: number) => {
+      setObjectives((prev) =>
+        prev.map((obj) => {
+          if (obj.id !== objectiveId) return obj;
+          
+          const filteredLogs = obj.progressLogs.filter(
+            (log) => !(log.month === month && log.year === year)
+          );
+          
+          let newCurrentValue: number;
+          if (obj.valueType === "quantity") {
+            newCurrentValue = filteredLogs.reduce((sum, l) => sum + l.value, 0);
+          } else {
+            const sortedLogs = [...filteredLogs].sort((a, b) => {
+              if (a.year !== b.year) return b.year - a.year;
+              return b.month - a.month;
+            });
+            newCurrentValue = sortedLogs[0]?.value || 0;
+          }
+          
+          const newStatus = calculateStatus(newCurrentValue, obj.targetValue, obj.deadline);
+          return {
+            ...obj,
+            progressLogs: filteredLogs,
+            currentValue: newCurrentValue,
+            status: newStatus,
+          };
+        })
+      );
+    },
+    [setObjectives]
+  );
+
   const getMonthlyProgress = useCallback((objective: Objective, month: number, year: number) => {
     return objective.progressLogs.find((log) => log.month === month && log.year === year);
   }, []);
@@ -218,6 +252,7 @@ export function useObjectives() {
     deleteObjective,
     addProgressLog,
     updateProgressLog,
+    deleteProgressLog,
     getMonthlyProgress,
     getProgress,
     getStats,

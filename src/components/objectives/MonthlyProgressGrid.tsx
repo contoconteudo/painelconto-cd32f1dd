@@ -5,13 +5,24 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Check, Plus, Pencil, Calendar } from "lucide-react";
+import { Check, Plus, Pencil, Calendar, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface MonthlyProgressGridProps {
   objective: Objective;
   onAddProgress: (month: number, year: number, value: number, description: string) => void;
   onUpdateProgress: (month: number, year: number, value: number, description: string) => void;
+  onDeleteProgress: (month: number, year: number) => void;
 }
 
 const monthNames = [
@@ -71,10 +82,11 @@ function getMonthsBetweenDates(startDate: string, endDate: string): MonthData[] 
   return months;
 }
 
-export function MonthlyProgressGrid({ objective, onAddProgress, onUpdateProgress }: MonthlyProgressGridProps) {
+export function MonthlyProgressGrid({ objective, onAddProgress, onUpdateProgress, onDeleteProgress }: MonthlyProgressGridProps) {
   const [editingMonth, setEditingMonth] = useState<{ month: number; year: number } | null>(null);
   const [editValue, setEditValue] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   
   const config = valueTypeConfig[objective.valueType];
   const months = getMonthsBetweenDates(objective.createdAt, objective.deadline);
@@ -259,7 +271,19 @@ export function MonthlyProgressGrid({ objective, onAddProgress, onUpdateProgress
             </div>
           </div>
           
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {editingMonth && objective.progressLogs.find(
+              (log) => log.month === editingMonth.month && log.year === editingMonth.year
+            ) && (
+              <Button 
+                variant="outline" 
+                className="text-destructive hover:text-destructive sm:mr-auto"
+                onClick={() => setShowDeleteAlert(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Excluir
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setEditingMonth(null)}>
               Cancelar
             </Button>
@@ -273,6 +297,37 @@ export function MonthlyProgressGrid({ objective, onAddProgress, onUpdateProgress
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Registro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o registro de{" "}
+              {editingMonth && `${fullMonthNames[editingMonth.month - 1]} de ${editingMonth.year}`}?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (editingMonth) {
+                  onDeleteProgress(editingMonth.month, editingMonth.year);
+                  setShowDeleteAlert(false);
+                  setEditingMonth(null);
+                  setEditValue("");
+                  setEditDescription("");
+                }
+              }} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
