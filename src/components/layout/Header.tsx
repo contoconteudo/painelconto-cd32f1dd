@@ -1,7 +1,14 @@
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, Users, Target, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NotificationsPopover } from "./NotificationsPopover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useNavigate } from "react-router-dom";
 
 interface HeaderProps {
   title: string;
@@ -9,6 +16,20 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
+  const navigate = useNavigate();
+
+  const handleNewLead = () => {
+    navigate("/crm?action=new-lead");
+  };
+
+  const handleNewClient = () => {
+    navigate("/clientes?action=new-client");
+  };
+
+  const handleNewObjective = () => {
+    navigate("/estrategia?action=new-objective");
+  };
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
       <div>
@@ -29,10 +50,28 @@ export function Header({ title, subtitle }: HeaderProps) {
 
         <NotificationsPopover />
 
-        <Button size="sm" className="gradient-primary text-primary-foreground gap-1.5">
-          <Plus className="h-4 w-4" />
-          Novo
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" className="gradient-primary text-primary-foreground gap-1.5">
+              <Plus className="h-4 w-4" />
+              Novo
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={handleNewLead} className="cursor-pointer">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Novo Lead
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleNewClient} className="cursor-pointer">
+              <Users className="h-4 w-4 mr-2" />
+              Novo Cliente
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleNewObjective} className="cursor-pointer">
+              <Target className="h-4 w-4 mr-2" />
+              Novo Objetivo
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
