@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Target, TrendingUp, Calendar, Briefcase, Plus, ChevronRight, Database, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,14 +41,8 @@ const valueTypeConfig: Record<ObjectiveValueType, { prefix: string; suffix: stri
 export default function Estrategia() {
   const { objectives, addObjective, updateObjective, deleteObjective, addProgressLog, updateProgressLog, deleteProgressLog, getProgress, getStats } = useObjectives();
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [selectedObjectiveId, setSelectedObjectiveId] = useState<string | null>(null);
+  const [selectedObjective, setSelectedObjective] = useState<Objective | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-
-  // Derive selected objective from the updated objectives array
-  const selectedObjective = useMemo(() => {
-    if (!selectedObjectiveId) return null;
-    return objectives.find((obj) => obj.id === selectedObjectiveId) || null;
-  }, [selectedObjectiveId, objectives]);
 
   const stats = getStats();
 
@@ -58,7 +52,7 @@ export default function Estrategia() {
   };
 
   const handleObjectiveClick = (objective: Objective) => {
-    setSelectedObjectiveId(objective.id);
+    setSelectedObjective(objective);
     setShowDetail(true);
   };
 
