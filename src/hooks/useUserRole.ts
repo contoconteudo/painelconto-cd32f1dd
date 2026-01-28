@@ -44,6 +44,38 @@ const savePermissions = (permissions: UserPermissions) => {
   localStorage.setItem(USER_PERMISSIONS_KEY, JSON.stringify(permissions));
 };
 
+// Helper para carregar permissões de um usuário
+const loadUserPermissions = (userId: string | null) => {
+  if (!userId) {
+    return { role: null as AppRole | null, modules: [] as ModulePermission[], companies: [] as CompanyAccess[] };
+  }
+
+  const mockUser = MOCK_USERS.find((u) => u.id === userId);
+  
+  if (!mockUser) {
+    return { role: "analista" as AppRole, modules: [] as ModulePermission[], companies: [] as CompanyAccess[] };
+  }
+
+  // Admin sempre tem acesso a tudo
+  if (mockUser.role === "admin") {
+    return { role: mockUser.role, modules: mockUser.modules, companies: mockUser.companies };
+  }
+
+  // Para outros usuários, verificar permissões salvas
+  const savedPermissions = getSavedPermissions();
+  const userSavedPerms = savedPermissions[userId];
+  
+  if (userSavedPerms) {
+    return { 
+      role: mockUser.role, 
+      modules: userSavedPerms.modules || [], 
+      companies: userSavedPerms.companies || [] 
+    };
+  }
+
+  return { role: mockUser.role, modules: mockUser.modules, companies: mockUser.companies };
+};
+
 export function useUserRole(): UseUserRoleReturn {
   const { user, isLoading: authLoading } = useAuth();
   const [role, setRole] = useState<AppRole | null>(null);
@@ -51,88 +83,47 @@ export function useUserRole(): UseUserRoleReturn {
   const [userCompanies, setUserCompanies] = useState<CompanyAccess[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Função para carregar permissões do usuário
-  const loadPermissions = useCallback((currentUser: { id: string } | null) => {
-    if (!currentUser) {
-      setRole(null);
-      setUserModules([]);
-      setUserCompanies([]);
-      setIsLoading(false);
-      return;
-    }
-
-    // Busca role do usuário nos dados mockados
-    const mockUser = MOCK_USERS.find((u) => u.id === currentUser.id);
-    
-    if (mockUser) {
-      setRole(mockUser.role);
-      
-      // Admin sempre tem acesso a tudo
-      if (mockUser.role === "admin") {
-        setUserModules(mockUser.modules);
-        setUserCompanies(mockUser.companies);
-      } else {
-        // Para outros usuários, verificar permissões salvas ou usar default
-        const savedPermissions = getSavedPermissions();
-        const userSavedPerms = savedPermissions[currentUser.id];
-        
-        if (userSavedPerms) {
-          setUserModules(userSavedPerms.modules || []);
-          setUserCompanies(userSavedPerms.companies || []);
-        } else {
-          // Usar módulos e empresas definidos no mockData
-          setUserModules(mockUser.modules);
-          setUserCompanies(mockUser.companies);
-        }
-      }
-    } else {
-      // Usuário novo - sem acesso até admin liberar
-      setRole("analista");
-      setUserModules([]);
-      setUserCompanies([]);
-    }
-    
-    setIsLoading(false);
-  }, []);
-
   // Carregar permissões quando user mudar
   useEffect(() => {
     if (authLoading) {
       return;
     }
 
-    loadPermissions(user);
-  }, [user, authLoading, loadPermissions]);
+    const perms = loadUserPermissions(user?.id || null);
+    setRole(perms.role);
+    setUserModules(perms.modules);
+    setUserCompanies(perms.companies);
+    setIsLoading(false);
+  }, [user?.id, authLoading]);
 
   // Escutar evento de mudança de auth para recarregar permissões
   useEffect(() => {
     const handleAuthChange = (event: CustomEvent) => {
-      loadPermissions(event.detail);
+      const newUser = event.detail;
+      const perms = loadUserPermissions(newUser?.id || null);
+      setRole(perms.role);
+      setUserModules(perms.modules);
+      setUserCompanies(perms.companies);
+      setIsLoading(false);
     };
 
     window.addEventListener("auth-user-changed", handleAuthChange as EventListener);
     return () => window.removeEventListener("auth-user-changed", handleAuthChange as EventListener);
-  }, [loadPermissions]);
+  }, []);
 
-  const hasRole = (checkRole: AppRole): boolean => role === checkRole;
+  const hasRole = useCallback((checkRole: AppRole): boolean => {
+    return role === checkRole;
+  }, [role]);
 
   const canAccessModule = useCallback((module: ModulePermission): boolean => {
     if (!role) return false;
-    
-    // Admin sempre tem acesso a tudo
     if (role === "admin") return true;
-    
-    // Para outros usuários, verificar módulos específicos
     return userModules.includes(module);
   }, [role, userModules]);
 
   const canAccessCompany = useCallback((company: CompanyAccess): boolean => {
     if (!role) return false;
-    
-    // Admin sempre tem acesso a tudo
     if (role === "admin") return true;
-    
-    // Para outros usuários, verificar empresas específicas
     return userCompanies.includes(company);
   }, [role, userCompanies]);
 
@@ -147,16 +138,16 @@ export function useUserRole(): UseUserRoleReturn {
   const getAllUsers = useCallback((): MockUser[] => {
     const savedPermissions = getSavedPermissions();
     
-    return MOCK_USERS.map((user) => {
-      if (user.role === "admin") {
-        return user;
+    return MOCK_USERS.map((u) => {
+      if (u.role === "admin") {
+        return u;
       }
       
-      const savedPerms = savedPermissions[user.id];
+      const savedPerms = savedPermissions[u.id];
       return {
-        ...user,
-        modules: savedPerms?.modules ?? user.modules,
-        companies: savedPerms?.companies ?? user.companies,
+        ...u,
+        modules: savedPerms?.modules ?? u.modules,
+        companies: savedPerms?.companies ?? u.companies,
       };
     });
   }, []);
@@ -171,10 +162,9 @@ export function useUserRole(): UseUserRoleReturn {
       setUserModules(modules);
       setUserCompanies(companies);
     }
-  }, [user, role]);
+  }, [user?.id, role]);
 
   const updateUserRole = useCallback((userId: string, newRole: AppRole) => {
-    // Em produção, isso salvaria no banco de dados
     console.log(`Role do usuário ${userId} alterada para ${newRole}`);
   }, []);
 
