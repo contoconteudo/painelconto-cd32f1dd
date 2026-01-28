@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./useAuth";
-import { MOCK_USERS, USER_PERMISSIONS_KEY, AppRole, ModulePermission, CompanyAccess, MockUser } from "@/data/mockData";
+import { supabase } from "@/integrations/supabase/client";
 
-// Re-exportando tipos para uso externo
-export type { AppRole, ModulePermission, CompanyAccess };
+export type AppRole = "admin" | "gestor" | "comercial" | "analista";
+export type ModulePermission = "dashboard" | "crm" | "clients" | "objectives" | "strategy" | "settings" | "admin";
+export type CompanyAccess = string;
 
-interface UserPermissions {
-  [userId: string]: {
-    modules: ModulePermission[];
-    companies: CompanyAccess[];
-  };
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  role: AppRole | null;
+  modules: ModulePermission[];
+  companies: CompanyAccess[];
 }
 
 interface UseUserRoleReturn {
@@ -24,57 +27,10 @@ interface UseUserRoleReturn {
   canAccessCompany: (company: CompanyAccess) => boolean;
   getUserModules: () => ModulePermission[];
   getUserCompanies: () => CompanyAccess[];
-  getAllUsers: () => MockUser[];
-  updateUserPermissions: (userId: string, modules: ModulePermission[], companies: CompanyAccess[]) => void;
-  updateUserRole: (userId: string, role: AppRole) => void;
+  getAllUsers: () => Promise<UserProfile[]>;
+  updateUserPermissions: (userId: string, modules: ModulePermission[], companies: CompanyAccess[]) => Promise<void>;
+  updateUserRole: (userId: string, role: AppRole) => Promise<void>;
 }
-
-// Helper para obter permissões salvas do localStorage
-const getSavedPermissions = (): UserPermissions => {
-  try {
-    const saved = localStorage.getItem(USER_PERMISSIONS_KEY);
-    return saved ? JSON.parse(saved) : {};
-  } catch {
-    return {};
-  }
-};
-
-// Helper para salvar permissões no localStorage
-const savePermissions = (permissions: UserPermissions) => {
-  localStorage.setItem(USER_PERMISSIONS_KEY, JSON.stringify(permissions));
-};
-
-// Helper para carregar permissões de um usuário
-const loadUserPermissions = (userId: string | null) => {
-  if (!userId) {
-    return { role: null as AppRole | null, modules: [] as ModulePermission[], companies: [] as CompanyAccess[] };
-  }
-
-  const mockUser = MOCK_USERS.find((u) => u.id === userId);
-  
-  if (!mockUser) {
-    return { role: "analista" as AppRole, modules: [] as ModulePermission[], companies: [] as CompanyAccess[] };
-  }
-
-  // Admin sempre tem acesso a tudo
-  if (mockUser.role === "admin") {
-    return { role: mockUser.role, modules: mockUser.modules, companies: mockUser.companies };
-  }
-
-  // Para outros usuários, verificar permissões salvas
-  const savedPermissions = getSavedPermissions();
-  const userSavedPerms = savedPermissions[userId];
-  
-  if (userSavedPerms) {
-    return { 
-      role: mockUser.role, 
-      modules: userSavedPerms.modules || [], 
-      companies: userSavedPerms.companies || [] 
-    };
-  }
-
-  return { role: mockUser.role, modules: mockUser.modules, companies: mockUser.companies };
-};
 
 export function useUserRole(): UseUserRoleReturn {
   const { user, isLoading: authLoading } = useAuth();
@@ -83,33 +39,88 @@ export function useUserRole(): UseUserRoleReturn {
   const [userCompanies, setUserCompanies] = useState<CompanyAccess[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Carregar role e permissões do banco
+  const loadUserData = useCallback(async (userId: string) => {
+    try {
+      // Buscar role
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (roleError) {
+        console.error("Erro ao buscar role:", roleError);
+        setRole(null);
+      } else {
+        setRole(roleData?.role as AppRole | null);
+      }
+
+      // Se for admin, tem acesso total
+      if (roleData?.role === "admin") {
+        // Buscar todos os espaços disponíveis
+        const { data: spacesData } = await supabase
+          .from("spaces")
+          .select("id");
+        
+        const allModules: ModulePermission[] = ["dashboard", "strategy", "crm", "clients", "settings", "admin"];
+        setUserModules(allModules);
+        setUserCompanies(spacesData?.map(s => s.id) || []);
+      } else {
+        // Buscar permissões específicas
+        const { data: permData } = await supabase
+          .from("user_permissions")
+          .select("modules, spaces")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (permData) {
+          setUserModules((permData.modules || []) as ModulePermission[]);
+          setUserCompanies(permData.spaces || []);
+        } else {
+          setUserModules([]);
+          setUserCompanies([]);
+        }
+      }
+    } catch (error) {
+      console.error("Erro ao carregar dados do usuário:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // Carregar permissões quando user mudar
   useEffect(() => {
-    if (authLoading) {
+    if (authLoading) return;
+
+    if (!user?.id) {
+      setRole(null);
+      setUserModules([]);
+      setUserCompanies([]);
+      setIsLoading(false);
       return;
     }
 
-    const perms = loadUserPermissions(user?.id || null);
-    setRole(perms.role);
-    setUserModules(perms.modules);
-    setUserCompanies(perms.companies);
-    setIsLoading(false);
-  }, [user?.id, authLoading]);
+    loadUserData(user.id);
+  }, [user?.id, authLoading, loadUserData]);
 
-  // Escutar evento de mudança de auth para recarregar permissões
+  // Escutar evento de mudança de auth
   useEffect(() => {
-    const handleAuthChange = (event: CustomEvent) => {
+    const handleAuthChange = async (event: CustomEvent) => {
       const newUser = event.detail;
-      const perms = loadUserPermissions(newUser?.id || null);
-      setRole(perms.role);
-      setUserModules(perms.modules);
-      setUserCompanies(perms.companies);
-      setIsLoading(false);
+      if (newUser?.id) {
+        await loadUserData(newUser.id);
+      } else {
+        setRole(null);
+        setUserModules([]);
+        setUserCompanies([]);
+        setIsLoading(false);
+      }
     };
 
     window.addEventListener("auth-user-changed", handleAuthChange as EventListener);
     return () => window.removeEventListener("auth-user-changed", handleAuthChange as EventListener);
-  }, []);
+  }, [loadUserData]);
 
   const hasRole = useCallback((checkRole: AppRole): boolean => {
     return role === checkRole;
@@ -135,28 +146,72 @@ export function useUserRole(): UseUserRoleReturn {
     return userCompanies;
   }, [userCompanies]);
 
-  const getAllUsers = useCallback((): MockUser[] => {
-    const savedPermissions = getSavedPermissions();
-    
-    return MOCK_USERS.map((u) => {
-      if (u.role === "admin") {
-        return u;
-      }
-      
-      const savedPerms = savedPermissions[u.id];
-      return {
-        ...u,
-        modules: savedPerms?.modules ?? u.modules,
-        companies: savedPerms?.companies ?? u.companies,
-      };
-    });
+  const getAllUsers = useCallback(async (): Promise<UserProfile[]> => {
+    const { data: profiles, error } = await supabase
+      .from("profiles")
+      .select(`
+        id,
+        email,
+        full_name
+      `);
+
+    if (error) {
+      console.error("Erro ao buscar usuários:", error);
+      return [];
+    }
+
+    // Buscar roles e permissões para cada usuário
+    const usersWithRoles = await Promise.all(
+      (profiles || []).map(async (profile) => {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", profile.id)
+          .maybeSingle();
+
+        const { data: permData } = await supabase
+          .from("user_permissions")
+          .select("modules, spaces")
+          .eq("user_id", profile.id)
+          .maybeSingle();
+
+        return {
+          ...profile,
+          role: (roleData?.role as AppRole) || null,
+          modules: (permData?.modules || []) as ModulePermission[],
+          companies: permData?.spaces || [],
+        };
+      })
+    );
+
+    return usersWithRoles;
   }, []);
 
-  const updateUserPermissions = useCallback((userId: string, modules: ModulePermission[], companies: CompanyAccess[]) => {
-    const savedPermissions = getSavedPermissions();
-    savedPermissions[userId] = { modules, companies };
-    savePermissions(savedPermissions);
-    
+  const updateUserPermissions = useCallback(async (
+    userId: string, 
+    modules: ModulePermission[], 
+    companies: CompanyAccess[]
+  ) => {
+    // Verificar se já existe registro
+    const { data: existing } = await supabase
+      .from("user_permissions")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existing) {
+      // Atualizar
+      await supabase
+        .from("user_permissions")
+        .update({ modules, spaces: companies, updated_at: new Date().toISOString() })
+        .eq("user_id", userId);
+    } else {
+      // Inserir
+      await supabase
+        .from("user_permissions")
+        .insert({ user_id: userId, modules, spaces: companies });
+    }
+
     // Se for o usuário atual, atualizar estado
     if (user?.id === userId && role !== "admin") {
       setUserModules(modules);
@@ -164,9 +219,32 @@ export function useUserRole(): UseUserRoleReturn {
     }
   }, [user?.id, role]);
 
-  const updateUserRole = useCallback((_userId: string, _newRole: AppRole) => {
-    // Role update - será implementado com backend real
-  }, []);
+  const updateUserRole = useCallback(async (userId: string, newRole: AppRole) => {
+    // Verificar se já existe registro
+    const { data: existing } = await supabase
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (existing) {
+      // Atualizar
+      await supabase
+        .from("user_roles")
+        .update({ role: newRole })
+        .eq("user_id", userId);
+    } else {
+      // Inserir
+      await supabase
+        .from("user_roles")
+        .insert({ user_id: userId, role: newRole });
+    }
+
+    // Se for o usuário atual, recarregar dados
+    if (user?.id === userId) {
+      await loadUserData(userId);
+    }
+  }, [user?.id, loadUserData]);
 
   return {
     role,

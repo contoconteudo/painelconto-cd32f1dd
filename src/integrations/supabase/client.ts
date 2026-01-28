@@ -1,38 +1,20 @@
 /**
- * Supabase Client - Preparado para integração futura
- * 
- * Este arquivo está preparado para quando o backend for reativado.
- * Por enquanto, o sistema usa dados mockados em localStorage.
- * 
- * Para ativar o Supabase:
- * 1. Configure as variáveis de ambiente VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY
- * 2. Atualize os hooks (useAuth, useUserRole, etc.) para usar este client
+ * Supabase Client - Configurado para produção
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Variáveis de ambiente do Supabase
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_URL = "https://bpdqqmckynmvmklniwbr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwZHFxbWNreW5tdm1rbG5pd2JyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MjY4NTcsImV4cCI6MjA4NTIwMjg1N30.MTsKrCXltmTbGvXr8jLPzA2u1dMzSW3MoTl7uqW6ofU";
 
-// Verifica se as variáveis estão configuradas
-const isConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    storage: localStorage,
+    storageKey: 'conto-auth-token',
+  },
+});
 
-// Cria o client apenas se estiver configurado
-// Caso contrário, retorna um mock que não faz nada
-export const supabase: SupabaseClient = isConfigured 
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : createClient('https://placeholder.supabase.co', 'placeholder-key');
-
-// Flag para verificar se o Supabase está disponível
-export const isSupabaseConfigured = isConfigured;
-
-// Log informativo apenas em desenvolvimento
-if (import.meta.env.DEV && !isConfigured) {
-  console.info(
-    '%c📦 Modo Demonstração Ativo',
-    'color: #10b981; font-weight: bold;',
-    '\nO sistema está usando dados mockados.',
-    '\nPara ativar o Supabase, configure as variáveis de ambiente.'
-  );
-}
+export const isSupabaseConfigured = true;
