@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "./useAuth";
-import { MOCK_USERS, USER_PERMISSIONS_KEY, AppRole, ModulePermission, MockUser } from "@/data/mockData";
+import { MOCK_USERS, USER_PERMISSIONS_KEY, AppRole, ModulePermission, CompanyAccess, MockUser } from "@/data/mockData";
 
 // Re-exportando tipos para uso externo
-export type { AppRole, ModulePermission };
+export type { AppRole, ModulePermission, CompanyAccess };
 
 interface UserPermissions {
-  [userId: string]: ModulePermission[];
+  [userId: string]: {
+    modules: ModulePermission[];
+    companies: CompanyAccess[];
+  };
 }
 
 interface UseUserRoleReturn {
@@ -18,9 +21,11 @@ interface UseUserRoleReturn {
   isAnalista: boolean;
   hasRole: (role: AppRole) => boolean;
   canAccessModule: (module: ModulePermission) => boolean;
+  canAccessCompany: (company: CompanyAccess) => boolean;
   getUserModules: () => ModulePermission[];
+  getUserCompanies: () => CompanyAccess[];
   getAllUsers: () => MockUser[];
-  updateUserPermissions: (userId: string, modules: ModulePermission[]) => void;
+  updateUserPermissions: (userId: string, modules: ModulePermission[], companies: CompanyAccess[]) => void;
   updateUserRole: (userId: string, role: AppRole) => void;
 }
 
@@ -43,6 +48,7 @@ export function useUserRole(): UseUserRoleReturn {
   const { user, isLoading: authLoading } = useAuth();
   const [role, setRole] = useState<AppRole | null>(null);
   const [userModules, setUserModules] = useState<ModulePermission[]>([]);
+  const [userCompanies, setUserCompanies] = useState<CompanyAccess[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -53,6 +59,7 @@ export function useUserRole(): UseUserRoleReturn {
     if (!user) {
       setRole(null);
       setUserModules([]);
+      setUserCompanies([]);
       setIsLoading(false);
       return;
     }
@@ -66,22 +73,26 @@ export function useUserRole(): UseUserRoleReturn {
       // Admin sempre tem acesso a tudo
       if (mockUser.role === "admin") {
         setUserModules(mockUser.modules);
+        setUserCompanies(mockUser.companies);
       } else {
         // Para outros usuários, verificar permissões salvas ou usar default
         const savedPermissions = getSavedPermissions();
-        const userSavedModules = savedPermissions[user.id];
+        const userSavedPerms = savedPermissions[user.id];
         
-        if (userSavedModules) {
-          setUserModules(userSavedModules);
+        if (userSavedPerms) {
+          setUserModules(userSavedPerms.modules || []);
+          setUserCompanies(userSavedPerms.companies || []);
         } else {
-          // Usar módulos definidos no mockData
+          // Usar módulos e empresas definidos no mockData
           setUserModules(mockUser.modules);
+          setUserCompanies(mockUser.companies);
         }
       }
     } else {
       // Usuário novo - sem acesso até admin liberar
       setRole("analista");
       setUserModules([]);
+      setUserCompanies([]);
     }
     
     setIsLoading(false);
@@ -99,35 +110,55 @@ export function useUserRole(): UseUserRoleReturn {
     return userModules.includes(module);
   }, [role, userModules]);
 
+  const canAccessCompany = useCallback((company: CompanyAccess): boolean => {
+    if (!role) return false;
+    
+    // Admin sempre tem acesso a tudo
+    if (role === "admin") return true;
+    
+    // Para outros usuários, verificar empresas específicas
+    return userCompanies.includes(company);
+  }, [role, userCompanies]);
+
   const getUserModules = useCallback((): ModulePermission[] => {
     return userModules;
   }, [userModules]);
 
+  const getUserCompanies = useCallback((): CompanyAccess[] => {
+    return userCompanies;
+  }, [userCompanies]);
+
   const getAllUsers = useCallback((): MockUser[] => {
     const savedPermissions = getSavedPermissions();
     
-    return MOCK_USERS.map((user) => ({
-      ...user,
-      modules: user.role === "admin" 
-        ? user.modules 
-        : (savedPermissions[user.id] || user.modules),
-    }));
+    return MOCK_USERS.map((user) => {
+      if (user.role === "admin") {
+        return user;
+      }
+      
+      const savedPerms = savedPermissions[user.id];
+      return {
+        ...user,
+        modules: savedPerms?.modules || user.modules,
+        companies: savedPerms?.companies || user.companies,
+      };
+    });
   }, []);
 
-  const updateUserPermissions = useCallback((userId: string, modules: ModulePermission[]) => {
+  const updateUserPermissions = useCallback((userId: string, modules: ModulePermission[], companies: CompanyAccess[]) => {
     const savedPermissions = getSavedPermissions();
-    savedPermissions[userId] = modules;
+    savedPermissions[userId] = { modules, companies };
     savePermissions(savedPermissions);
     
     // Se for o usuário atual, atualizar estado
     if (user?.id === userId && role !== "admin") {
       setUserModules(modules);
+      setUserCompanies(companies);
     }
   }, [user, role]);
 
   const updateUserRole = useCallback((userId: string, newRole: AppRole) => {
     // Em produção, isso salvaria no banco de dados
-    // Por agora, apenas logamos que seria salvo
     console.log(`Role do usuário ${userId} alterada para ${newRole}`);
   }, []);
 
@@ -140,7 +171,9 @@ export function useUserRole(): UseUserRoleReturn {
     isAnalista: role === "analista",
     hasRole,
     canAccessModule,
+    canAccessCompany,
     getUserModules,
+    getUserCompanies,
     getAllUsers,
     updateUserPermissions,
     updateUserRole,

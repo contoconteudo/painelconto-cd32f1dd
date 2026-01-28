@@ -11,6 +11,7 @@ import { Lead, Client, Objective, NPSRecord } from "@/types";
 
 export type AppRole = "admin" | "gestor" | "comercial" | "analista";
 export type ModulePermission = "dashboard" | "crm" | "clients" | "objectives" | "strategy" | "settings" | "admin";
+export type CompanyAccess = "conto" | "amplia";
 
 export interface MockUser {
   id: string;
@@ -19,6 +20,7 @@ export interface MockUser {
   full_name: string;
   role: AppRole;
   modules: ModulePermission[]; // Módulos específicos que este usuário pode acessar
+  companies: CompanyAccess[]; // Espaços que este usuário pode acessar
   created_at: string;
 }
 
@@ -30,7 +32,8 @@ export const MOCK_USERS: MockUser[] = [
     password: "admin123",
     full_name: "Administrador",
     role: "admin",
-    modules: ["dashboard", "strategy", "crm", "clients", "settings", "admin"], // Admin sempre tem tudo
+    modules: ["dashboard", "strategy", "crm", "clients", "settings", "admin"],
+    companies: ["conto", "amplia"], // Admin sempre tem acesso a todos
     created_at: "2024-01-01T00:00:00Z",
   },
   {
@@ -39,7 +42,8 @@ export const MOCK_USERS: MockUser[] = [
     password: "gestor123",
     full_name: "Maria Gestora",
     role: "gestor",
-    modules: ["dashboard", "strategy", "crm", "clients"], // Liberado pelo admin
+    modules: ["dashboard", "strategy", "crm", "clients"],
+    companies: ["conto", "amplia"], // Acesso aos dois espaços
     created_at: "2024-01-15T00:00:00Z",
   },
   {
@@ -48,7 +52,8 @@ export const MOCK_USERS: MockUser[] = [
     password: "comercial123",
     full_name: "João Vendas",
     role: "comercial",
-    modules: ["dashboard", "crm", "clients"], // Liberado pelo admin
+    modules: ["dashboard", "crm", "clients"],
+    companies: ["conto"], // Apenas Conto
     created_at: "2024-02-01T00:00:00Z",
   },
   {
@@ -57,7 +62,8 @@ export const MOCK_USERS: MockUser[] = [
     password: "analista123",
     full_name: "Ana Analista",
     role: "analista",
-    modules: ["dashboard"], // Apenas dashboard liberado pelo admin
+    modules: ["dashboard"],
+    companies: ["amplia"], // Apenas Amplia
     created_at: "2024-02-15T00:00:00Z",
   },
   {
@@ -66,9 +72,19 @@ export const MOCK_USERS: MockUser[] = [
     password: "novo123",
     full_name: "Usuário Novo",
     role: "analista",
-    modules: [], // Usuário novo sem nenhum acesso até admin liberar
+    modules: [],
+    companies: [], // Sem acesso até admin liberar
     created_at: "2025-01-28T00:00:00Z",
   },
+];
+
+// ============================================
+// ESPAÇOS DISPONÍVEIS
+// ============================================
+
+export const ALL_COMPANIES: { id: CompanyAccess; label: string; description: string; color: string }[] = [
+  { id: "conto", label: "Conto", description: "Agência Conto", color: "bg-primary" },
+  { id: "amplia", label: "Amplia", description: "Agência Amplia", color: "bg-blue-600" },
 ];
 
 // ============================================
