@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, Info } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -32,19 +31,6 @@ export default function Login() {
       }
     } catch (error: any) {
       toast.error(error.message || "Erro ao processar solicitação");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const quickLogin = async (userEmail: string, userPassword: string) => {
-    setIsLoading(true);
-    try {
-      await signIn(userEmail, userPassword);
-      toast.success("Login realizado com sucesso!");
-      navigate("/");
-    } catch (error: any) {
-      toast.error(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -117,59 +103,6 @@ export default function Login() {
                 ? "Já tem uma conta? Faça login"
                 : "Não tem conta? Cadastre-se"}
             </button>
-          </div>
-        </div>
-
-        {/* Demo Users Card */}
-        <div className="p-4 md:p-6 bg-card/50 rounded-xl border border-border/50">
-          <Alert className="mb-4 bg-primary/5 border-primary/20">
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs md:text-sm">
-              <strong>Modo Demonstração:</strong> Use um dos usuários abaixo para testar o sistema.
-            </AlertDescription>
-          </Alert>
-          
-          <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="justify-between text-left h-auto py-2.5 px-3 touch-manipulation"
-              onClick={() => quickLogin("admin@conto.com.br", "admin123")}
-              disabled={isLoading}
-            >
-              <span className="font-medium text-xs">Admin</span>
-              <span className="text-[10px] md:text-xs text-muted-foreground hidden md:inline">admin@conto.com.br</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="justify-between text-left h-auto py-2.5 px-3 touch-manipulation"
-              onClick={() => quickLogin("gestor@conto.com.br", "gestor123")}
-              disabled={isLoading}
-            >
-              <span className="font-medium text-xs">Gestor</span>
-              <span className="text-[10px] md:text-xs text-muted-foreground hidden md:inline">gestor@conto.com.br</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="justify-between text-left h-auto py-2.5 px-3 touch-manipulation"
-              onClick={() => quickLogin("comercial@conto.com.br", "comercial123")}
-              disabled={isLoading}
-            >
-              <span className="font-medium text-xs">Comercial</span>
-              <span className="text-[10px] md:text-xs text-muted-foreground hidden md:inline">comercial@conto.com.br</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="justify-between text-left h-auto py-2.5 px-3 touch-manipulation"
-              onClick={() => quickLogin("analista@conto.com.br", "analista123")}
-              disabled={isLoading}
-            >
-              <span className="font-medium text-xs">Analista</span>
-              <span className="text-[10px] md:text-xs text-muted-foreground hidden md:inline">analista@conto.com.br</span>
-            </Button>
           </div>
         </div>
       </div>

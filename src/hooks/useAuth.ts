@@ -50,24 +50,39 @@ export function useAuth() {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string): Promise<void> => {
-    // Verifica se email já existe
-    const exists = MOCK_USERS.find(
+    // Verifica se email já existe nos usuários mockados
+    const existsInMock = MOCK_USERS.find(
       (u) => u.email.toLowerCase() === email.toLowerCase()
     );
 
-    if (exists) {
-      throw new Error("Este email já está cadastrado");
+    if (existsInMock) {
+      throw new Error("Este e-mail já está cadastrado no sistema");
     }
 
-    // Cria novo usuário (apenas em memória - não persiste no mock)
+    // Verifica se já existe um usuário criado com este email no localStorage
+    const registeredUsersStr = localStorage.getItem(MOCK_STORAGE_KEYS.REGISTERED_USERS);
+    const registeredUsers: AuthUser[] = registeredUsersStr ? JSON.parse(registeredUsersStr) : [];
+    
+    const existsInRegistered = registeredUsers.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase()
+    );
+
+    if (existsInRegistered) {
+      throw new Error("Este e-mail já está cadastrado no sistema");
+    }
+
+    // Cria novo usuário
     const newUser: AuthUser = {
       id: `user-new-${Date.now()}`,
       email: email,
       full_name: email.split("@")[0],
     };
 
-    // Em um sistema real, salvaria no backend
-    // Por agora, apenas loga o usuário
+    // Salva na lista de usuários registrados
+    registeredUsers.push(newUser);
+    localStorage.setItem(MOCK_STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(registeredUsers));
+
+    // Loga o usuário
     setUser(newUser);
     localStorage.setItem(MOCK_STORAGE_KEYS.CURRENT_USER, JSON.stringify(newUser));
   }, []);

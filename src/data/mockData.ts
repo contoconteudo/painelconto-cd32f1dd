@@ -48,7 +48,7 @@ export const MOCK_USERS: MockUser[] = DEMO_MODE_ONLY ? [
   {
     id: "user-admin-001",
     email: "admin@conto.com.br",
-    password: "admin123",
+    password: "123456",
     full_name: "Administrador",
     role: "admin",
     modules: ["dashboard", "strategy", "crm", "clients", "settings", "admin"],
@@ -548,4 +548,5 @@ export const MOCK_OBJECTIVES: Objective[] = [
 export const MOCK_STORAGE_KEYS = {
   CURRENT_USER: "conto-mock-current-user",
   USERS: "conto-mock-users",
+  REGISTERED_USERS: "conto-registered-users",
 } as const;
