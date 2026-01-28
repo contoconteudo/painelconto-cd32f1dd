@@ -356,4 +356,9 @@
   .active-press:active {
     @apply scale-[0.98] opacity-90;
   }
+  
+  /* Hide Lovable badge in production */
+  #lovable-badge {
+    display: none !important;
+  }
 }
