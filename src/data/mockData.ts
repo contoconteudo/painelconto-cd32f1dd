@@ -1,6 +1,11 @@
 /**
  * Dados mockados para demonstração do sistema.
  * Estes dados serão substituídos por dados reais do backend futuramente.
+ * 
+ * ⚠️ AVISO DE SEGURANÇA:
+ * As senhas neste arquivo são apenas para demonstração local.
+ * Em produção com Supabase Auth, as senhas são gerenciadas pelo backend
+ * e NUNCA ficam expostas no frontend.
  */
 
 import { Lead, Client, Objective, NPSRecord } from "@/types";
@@ -16,7 +21,7 @@ export type CompanyAccess = "conto" | "amplia";
 export interface MockUser {
   id: string;
   email: string;
-  password: string; // Apenas para mock - nunca faça isso em produção!
+  password: string; // ⚠️ APENAS PARA DEMO - Removido quando usar Supabase Auth
   full_name: string;
   role: AppRole;
   modules: ModulePermission[]; // Módulos específicos que este usuário pode acessar
@@ -24,8 +29,21 @@ export interface MockUser {
   created_at: string;
 }
 
+/**
+ * ⚠️ CREDENCIAIS DE DEMONSTRAÇÃO
+ * 
+ * Estas credenciais são usadas apenas no modo de demonstração local.
+ * Quando o Supabase Auth for ativado:
+ * 1. Este array deve ser removido
+ * 2. Autenticação será feita via supabase.auth.signIn()
+ * 3. Roles serão carregadas da tabela user_roles no banco
+ * 
+ * Para produção, substitua useAuth.ts por integração real com Supabase.
+ */
+const DEMO_MODE_ONLY = import.meta.env.DEV || !import.meta.env.VITE_SUPABASE_URL;
+
 // Admin tem acesso a TUDO automaticamente, os demais só têm o que o admin liberar
-export const MOCK_USERS: MockUser[] = [
+export const MOCK_USERS: MockUser[] = DEMO_MODE_ONLY ? [
   {
     id: "user-admin-001",
     email: "admin@conto.com.br",
@@ -76,7 +94,7 @@ export const MOCK_USERS: MockUser[] = [
     companies: [], // Sem acesso até admin liberar
     created_at: "2025-01-28T00:00:00Z",
   },
-];
+] : [];
 
 // ============================================
 // ESPAÇOS DISPONÍVEIS

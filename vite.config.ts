@@ -5,6 +5,10 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // BASE PATH - ajuste para seu domínio se estiver em subpasta
+  // Exemplo: base: "/cms/" se acessado via seudominio.com/cms/
+  base: "/",
+  
   server: {
     host: "::",
     port: 8080,
@@ -12,10 +16,45 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+  },
+  
+  // Configurações de build para produção
+  build: {
+    // Otimizações de produção
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        // Remove console.logs em produção (exceto errors/warns)
+        drop_console: mode === "production",
+        drop_debugger: true,
+      },
+    },
+    // Gerar source maps apenas em desenvolvimento
+    sourcemap: mode === "development",
+    // Otimizar chunks
+    rollupOptions: {
+      output: {
+        // Separar vendors em chunk próprio para melhor cache
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          ui: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-popover"],
+        },
+      },
+    },
+    // Limite de warning para chunks grandes
+    chunkSizeWarningLimit: 1000,
+  },
+  
+  // Definir variáveis de ambiente em produção
+  define: {
+    // Disponível via import.meta.env.MODE
+    "import.meta.env.BUILD_DATE": JSON.stringify(new Date().toISOString()),
   },
 }));
