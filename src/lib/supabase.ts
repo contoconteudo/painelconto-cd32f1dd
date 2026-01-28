@@ -9,8 +9,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
 
 // Variáveis de ambiente do Supabase
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://pzeverrrrptauqcdeulx.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6ZXZlcnJycnB0YXVxY2RldWx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MDk5MzYsImV4cCI6MjA4NTE4NTkzNn0.bN62M65CdVksL1ZNy4t_x-sdZBLXQftZotz8WzPkCMA';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://kaqndnjmcrmifqufyoop.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImthcW5kbmptY3JtaWZxdWZ5b29wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MTkyMjksImV4cCI6MjA4NTE5NTIyOX0.FlO5MQPWTxXJsdFe-SxsGq2f8vaGOsXUItYEeT-DozA';
 
 // Verifica se as variáveis estão configuradas
 export const isSupabaseConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
