@@ -28,13 +28,16 @@ export function useObjectives() {
   const { leads } = useLeads();
   const { clients } = useClients();
 
-  // Carregar objetivos do banco
+  // Carregar objetivos do banco - COM FAIL-SAFE
   const loadObjectives = useCallback(async () => {
+    // Se não tem empresa selecionada, retorna vazio imediatamente
     if (!currentCompany) {
       setObjectives([]);
       setIsLoading(false);
       return;
     }
+
+    setIsLoading(true);
 
     try {
       // Buscar objetivos

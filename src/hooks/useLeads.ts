@@ -10,13 +10,16 @@ export function useLeads() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
 
-  // Carregar leads do banco
+  // Carregar leads do banco - COM FAIL-SAFE
   const loadLeads = useCallback(async () => {
+    // Se não tem empresa selecionada, retorna vazio imediatamente
     if (!currentCompany) {
       setLeads([]);
       setIsLoading(false);
       return;
     }
+
+    setIsLoading(true);
 
     try {
       const { data, error } = await supabase

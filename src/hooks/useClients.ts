@@ -27,13 +27,16 @@ export function useClients() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
 
-  // Carregar clientes do banco
+  // Carregar clientes do banco - COM FAIL-SAFE
   const loadClients = useCallback(async () => {
+    // Se não tem empresa selecionada, retorna vazio imediatamente
     if (!currentCompany) {
       setClients([]);
       setIsLoading(false);
       return;
     }
+
+    setIsLoading(true);
 
     try {
       // Buscar clientes

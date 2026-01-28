@@ -1,6 +1,8 @@
 /**
  * Contexto para gerenciar a empresa/espaço selecionado.
  * Usa useUserSession para evitar queries duplicadas.
+ * 
+ * FAIL-SAFE: Nunca bloqueia a UI em loading infinito.
  */
 
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from "react";
@@ -35,67 +37,82 @@ interface CompanyProviderProps {
 export function CompanyProvider({ children }: CompanyProviderProps) {
   const session = useUserSession();
   const [currentCompany, setCurrentCompanyState] = useState<Company>(() => {
-    return localStorage.getItem(STORAGE_KEY) || "";
+    try {
+      return localStorage.getItem(STORAGE_KEY) || "";
+    } catch {
+      return "";
+    }
   });
 
-  // Mapear espaços disponíveis
+  // Mapear espaços disponíveis - com fail-safe
   const availableSpaces: Space[] = useMemo(() => {
-    return session.availableSpaces.map((s) => ({
-      id: s.id,
-      label: s.label,
-      description: s.description || "",
-      color: s.color || "bg-primary",
-    }));
+    try {
+      return (session.availableSpaces || []).map((s) => ({
+        id: s.id,
+        label: s.label || s.id,
+        description: s.description || "",
+        color: s.color || "bg-primary",
+      }));
+    } catch {
+      return [];
+    }
   }, [session.availableSpaces]);
 
   const availableSpaceIds = useMemo(() => availableSpaces.map((s) => s.id), [availableSpaces]);
 
   // Atualizar empresa selecionada quando dados carregarem
   useEffect(() => {
-    if (session.isLoading || session.spacesLoading) return;
+    // Não bloquear se ainda está carregando sessão principal
+    if (session.isLoading) return;
 
-    const savedCompany = localStorage.getItem(STORAGE_KEY);
-    
-    // Se a empresa salva é válida, mantém
-    if (savedCompany && availableSpaceIds.includes(savedCompany)) {
-      if (currentCompany !== savedCompany) {
-        setCurrentCompanyState(savedCompany);
+    try {
+      const savedCompany = localStorage.getItem(STORAGE_KEY);
+      
+      // Se a empresa salva é válida, mantém
+      if (savedCompany && availableSpaceIds.includes(savedCompany)) {
+        if (currentCompany !== savedCompany) {
+          setCurrentCompanyState(savedCompany);
+        }
+        return;
       }
-      return;
+      
+      // Senão, seleciona a primeira disponível
+      if (availableSpaceIds.length > 0 && !availableSpaceIds.includes(currentCompany)) {
+        setCurrentCompanyState(availableSpaceIds[0]);
+        localStorage.setItem(STORAGE_KEY, availableSpaceIds[0]);
+      }
+    } catch (error) {
+      console.warn("Erro ao sincronizar espaço selecionado:", error);
     }
-    
-    // Senão, seleciona a primeira disponível
-    if (availableSpaceIds.length > 0 && !availableSpaceIds.includes(currentCompany)) {
-      setCurrentCompanyState(availableSpaceIds[0]);
-      localStorage.setItem(STORAGE_KEY, availableSpaceIds[0]);
-    }
-  }, [session.isLoading, session.spacesLoading, availableSpaceIds, currentCompany]);
+  }, [session.isLoading, availableSpaceIds, currentCompany]);
 
   const setCurrentCompany = useCallback((company: Company) => {
-    // Verificar se o usuário tem acesso
-    if (!session.isAdmin && !session.allowedSpaces.includes(company)) {
-      console.warn(`Usuário não tem acesso ao espaço ${company}`);
-      return;
+    try {
+      // Verificar se o usuário tem acesso (admin tem acesso a tudo)
+      if (!session.isAdmin && session.allowedSpaces.length > 0 && !session.allowedSpaces.includes(company)) {
+        console.warn(`Usuário não tem acesso ao espaço ${company}`);
+        return;
+      }
+      
+      setCurrentCompanyState(company);
+      localStorage.setItem(STORAGE_KEY, company);
+    } catch (error) {
+      console.warn("Erro ao definir empresa:", error);
     }
-    
-    setCurrentCompanyState(company);
-    localStorage.setItem(STORAGE_KEY, company);
   }, [session.isAdmin, session.allowedSpaces]);
 
   const contextValue = useMemo<CompanyContextType>(() => ({
     currentCompany,
     setCurrentCompany,
-    allowedCompanies: session.allowedSpaces,
+    allowedCompanies: session.allowedSpaces || [],
     availableSpaces,
-    isAdmin: session.isAdmin,
-    // Evita bloquear toda a UI enquanto spaces ainda carregam; o app já pode renderizar.
+    isAdmin: session.isAdmin || false,
+    // IMPORTANTE: isLoading só vem da sessão principal, não bloqueia por spaces
     isLoading: session.isLoading,
   }), [currentCompany, setCurrentCompany, session.allowedSpaces, availableSpaces, session.isAdmin, session.isLoading]);
 
   return (
-    <CompanyContext.Provider
-      value={contextValue}
-    >
+    <CompanyContext.Provider value={contextValue}>
       {children}
     </CompanyContext.Provider>
   );
