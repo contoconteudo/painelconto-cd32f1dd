@@ -67,7 +67,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
       if (userRole === 'admin') {
         const { data, error } = await supabase.from('projects').select('*');
         if (error) throw error;
-        projectsData = data;
+        projectsData = data as Project[];
       } else {
         const { data, error } = await supabase
           .from('user_projects')
@@ -77,7 +77,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
           `)
           .eq('user_id', user.id);
         if (error) throw error;
-        projectsData = data.map(up => up.projects);
+        projectsData = data.map(up => up.projects) as Project[];
       }
 
       setProjects(projectsData);

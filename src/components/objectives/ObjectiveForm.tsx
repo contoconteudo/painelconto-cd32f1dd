@@ -13,7 +13,7 @@ import { TrendingUp, Users, Database } from "lucide-react";
 interface ObjectiveFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: Omit<Objective, "id" | "createdAt" | "progressLogs" | "currentValue" | "status">) => void;
+  onSubmit: (data: Omit<Objective, "id" | "createdAt" | "progressLogs" | "currentValue" | "status" | "project_id" | "user_id">) => void;
   objective?: Objective;
   mode: "create" | "edit";
 }

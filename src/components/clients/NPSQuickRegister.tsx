@@ -15,7 +15,7 @@ interface NPSQuickRegisterProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clients: Client[];
-  onAddNPS: (clientId: string, record: Omit<NPSRecord, "id">) => void;
+  onAddNPS: (clientId: string, record: Omit<NPSRecord, "id" | "client_id">) => void;
 }
 
 function NPSInput({ 

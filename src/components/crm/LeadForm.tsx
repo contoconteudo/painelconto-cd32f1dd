@@ -13,7 +13,7 @@ import { LEAD_STAGES, LEAD_TEMPERATURES, LEAD_ORIGINS } from "@/lib/constants";
 interface LeadFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: Omit<Lead, "id" | "createdAt" | "stageChangedAt">) => void;
+  onSubmit: (data: Omit<Lead, "id" | "createdAt" | "stageChangedAt" | "project_id" | "user_id">) => void;
   lead?: Lead;
   mode: "create" | "edit";
   defaultStage?: LeadStage;

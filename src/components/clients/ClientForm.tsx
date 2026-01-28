@@ -14,7 +14,7 @@ interface ClientFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client?: Client | null;
-  onSubmit: (data: Omit<Client, "id" | "npsHistory">) => void;
+  onSubmit: (data: Omit<Client, "id" | "npsHistory" | "project_id" | "user_id">) => void;
 }
 
 export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormProps) {

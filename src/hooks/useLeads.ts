@@ -4,16 +4,8 @@ import { useCallback, useEffect } from "react";
 import { useProject } from "@/contexts/ProjectContext";
 import { STORAGE_KEYS, AUTOMATION_CONFIG } from "@/lib/constants";
 
-const initialLeads: Lead[] = [
-  { id: "1", project_id: "default", user_id: "1", name: "Maria Silva", company: "Tech Startup", email: "maria@tech.com", phone: "(11) 99999-1111", value: 3500, temperature: "hot", origin: "Tráfego Pago", stage: "new", lastContact: "2026-01-26", notes: "", createdAt: "2026-01-20", stageChangedAt: "2026-01-20" },
-  { id: "2", project_id: "default", user_id: "1", name: "Pedro Costa", company: "E-commerce X", email: "pedro@ecomm.com", phone: "(11) 99999-2222", value: 2800, temperature: "warm", origin: "Indicação", stage: "new", lastContact: "2026-01-25", notes: "", createdAt: "2026-01-18", stageChangedAt: "2026-01-18" },
-  { id: "3", project_id: "default", user_id: "1", name: "Carla Mendes", company: "Clínica Saúde", email: "carla@clinica.com", phone: "(11) 99999-3333", value: 5500, temperature: "hot", origin: "Orgânico", stage: "new", lastContact: "2026-01-26", notes: "", createdAt: "2026-01-22", stageChangedAt: "2026-01-22" },
-  { id: "4", project_id: "default", user_id: "1", name: "João Santos", company: "Corp Inc", email: "joao@corp.com", phone: "(11) 99999-4444", value: 4500, temperature: "warm", origin: "LinkedIn", stage: "contact", lastContact: "2026-01-24", notes: "", createdAt: "2026-01-15", stageChangedAt: "2026-01-15" },
-  { id: "5", project_id: "default", user_id: "1", name: "Ana Lima", company: "Agency Pro", email: "ana@agency.com", phone: "(11) 99999-5555", value: 5500, temperature: "hot", origin: "Evento", stage: "contact", lastContact: "2026-01-26", notes: "", createdAt: "2026-01-10", stageChangedAt: "2026-01-10" },
-  { id: "6", project_id: "default", user_id: "1", name: "Roberto Alves", company: "Startup Y", email: "roberto@startup.com", phone: "(11) 99999-6666", value: 5500, temperature: "hot", origin: "Outbound", stage: "proposal", lastContact: "2026-01-23", notes: "", createdAt: "2026-01-08", stageChangedAt: "2026-01-08" },
-  { id: "7", project_id: "default", user_id: "1", name: "Fernanda Dias", company: "Loja Virtual", email: "fernanda@loja.com", phone: "(11) 99999-7777", value: 3000, temperature: "cold", origin: "Indicação", stage: "negotiation", lastContact: "2026-01-19", notes: "", createdAt: "2026-01-05", stageChangedAt: "2026-01-05" },
-  { id: "8", project_id: "default", user_id: "1", name: "Lucas Pereira", company: "Tech Solutions", email: "lucas@tech.com", phone: "(11) 99999-8888", value: 5500, temperature: "hot", origin: "Tráfego Pago", stage: "won", lastContact: "2026-01-25", notes: "Fechou contrato Completão", createdAt: "2026-01-02", stageChangedAt: "2026-01-02" },
-];
+// Dados iniciais vazios - pronto para dados reais
+const initialLeads: Lead[] = [];
 
 export function useLeads() {
   const [leads, setLeads] = useLocalStorage<Lead[]>(STORAGE_KEYS.LEADS, initialLeads);

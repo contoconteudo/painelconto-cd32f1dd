@@ -52,7 +52,7 @@ export default function AdminDashboard() {
         `);
 
       if (error) throw error;
-      setUsers(data || []);
+      setUsers(data as UserWithProjects[] || []);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {

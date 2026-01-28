@@ -24,6 +24,7 @@ interface ObjectiveDetailProps {
   objective: Objective | null;
   onAddProgress: (objectiveId: string, month: number, year: number, value: number, description: string) => void;
   onUpdateProgress: (objectiveId: string, month: number, year: number, value: number, description: string) => void;
+  onDeleteProgress: (objectiveId: string, month: number, year: number) => void;
   onUpdate: (id: string, data: Partial<Objective>) => void;
   onDelete: (id: string) => void;
 }
@@ -57,6 +58,7 @@ export function ObjectiveDetail({
   objective, 
   onAddProgress, 
   onUpdateProgress,
+  onDeleteProgress,
   onUpdate,
   onDelete 
 }: ObjectiveDetailProps) {
@@ -185,6 +187,9 @@ export function ObjectiveDetail({
                 }
                 onUpdateProgress={(month, year, value, description) => 
                   onUpdateProgress(objective.id, month, year, value, description)
+                }
+                onDeleteProgress={(month, year) => 
+                  onDeleteProgress(objective.id, month, year)
                 }
               />
             )}

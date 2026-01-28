@@ -14,6 +14,14 @@ export interface User {
   user_roles: UserRole[];
 }
 
+// Extracted types for external use
+export type LeadTemperature = 'hot' | 'warm' | 'cold';
+export type LeadStage = 'new' | 'contact' | 'meeting_scheduled' | 'meeting_done' | 'proposal' | 'followup' | 'negotiation' | 'won' | 'lost';
+export type ClientStatus = 'active' | 'inactive' | 'churn';
+export type ObjectiveValueType = 'financial' | 'quantity' | 'percentage';
+export type ObjectiveStatus = 'on_track' | 'at_risk' | 'behind';
+export type CommercialDataSource = 'crm' | 'clients';
+
 // Existing types remain the same but will be updated to include project_id
 export interface Lead {
   id: string;
@@ -24,9 +32,9 @@ export interface Lead {
   email: string;
   phone: string;
   value: number;
-  temperature: 'hot' | 'warm' | 'cold';
+  temperature: LeadTemperature;
   origin: string;
-  stage: 'new' | 'contact' | 'meeting_scheduled' | 'meeting_done' | 'proposal' | 'followup' | 'negotiation' | 'won' | 'lost';
+  stage: LeadStage;
   lastContact: string;
   notes: string;
   createdAt: string;
@@ -44,7 +52,7 @@ export interface Client {
   segment: string;
   package: string;
   monthlyValue: number;
-  status: 'active' | 'inactive' | 'churn';
+  status: ClientStatus;
   npsHistory: NPSRecord[];
   startDate: string;
   notes: string;
@@ -66,15 +74,15 @@ export interface Objective {
   user_id: string;
   name: string;
   description: string;
-  valueType: 'financial' | 'quantity' | 'percentage';
+  valueType: ObjectiveValueType;
   targetValue: number;
   currentValue: number;
   deadline: string;
-  status: 'on_track' | 'at_risk' | 'behind';
+  status: ObjectiveStatus;
   createdAt: string;
   progressLogs: ProgressLog[];
   isCommercial: boolean;
-  dataSources: ('crm' | 'clients')[];
+  dataSources: CommercialDataSource[];
 }
 
 export interface ProgressLog {
