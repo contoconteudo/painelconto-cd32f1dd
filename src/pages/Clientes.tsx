@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useClients, getLatestNPS } from "@/hooks/useClients";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Client } from "@/types";
 import { ClientForm } from "@/components/clients/ClientForm";
 import { ClientDetail } from "@/components/clients/ClientDetail";
@@ -40,6 +41,7 @@ function calculateLTV(monthlyValue: number, startDate: string): number {
 
 export default function Clientes() {
   const { clients, addClient, updateClient, deleteClient, addNPSRecord, deleteNPSRecord, getStats } = useClients();
+  const { canDelete } = usePermissions();
   const stats = getStats();
 
   // UI State
@@ -298,15 +300,17 @@ export default function Clientes() {
                           }}>
                             Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => {
-                              setSelectedClient(client);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
-                            Excluir
-                          </DropdownMenuItem>
+                          {canDelete && (
+                            <DropdownMenuItem 
+                              className="text-destructive"
+                              onClick={() => {
+                                setSelectedClient(client);
+                                setDeleteDialogOpen(true);
+                              }}
+                            >
+                              Excluir
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

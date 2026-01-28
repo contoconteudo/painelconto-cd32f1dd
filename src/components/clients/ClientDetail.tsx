@@ -8,6 +8,7 @@ import { Building2, Mail, Phone, Calendar, Package, TrendingUp, Star, Trash2, Ed
 import { cn } from "@/lib/utils";
 import { calculateClientNPS, getLatestNPS } from "@/hooks/useClients";
 import { CLIENT_STATUSES, MONTHS, getNPSColor } from "@/lib/constants";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface ClientDetailProps {
   open: boolean;
@@ -38,6 +39,8 @@ function calculateLTV(monthlyValue: number, startDate: string): number {
 }
 
 export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onDeleteNPSRecord }: ClientDetailProps) {
+  const { canDelete } = usePermissions();
+
   if (!client) return null;
 
   const avgNPS = calculateClientNPS(client.npsHistory);
@@ -170,12 +173,14 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onD
                           )}
                         </div>
                       </div>
-                      <button
-                        onClick={() => onDeleteNPSRecord(record.id)}
-                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => onDeleteNPSRecord(record.id)}
+                          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -198,10 +203,14 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onD
         <Separator />
 
         <div className="flex justify-between">
-          <Button variant="destructive" size="sm" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 mr-1.5" />
-            Excluir Cliente
-          </Button>
+          {canDelete ? (
+            <Button variant="destructive" size="sm" onClick={onDelete}>
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Excluir Cliente
+            </Button>
+          ) : (
+            <div /> // Placeholder para manter layout
+          )}
           <Button onClick={onEdit} className="gap-1.5">
             <Edit className="h-4 w-4" />
             Editar

@@ -28,7 +28,7 @@ const App = () => (
             <Route
               path="/"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredModule="dashboard">
                   <Index />
                 </ProtectedRoute>
               }
@@ -36,7 +36,7 @@ const App = () => (
             <Route
               path="/estrategia"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredModule="strategy">
                   <Estrategia />
                 </ProtectedRoute>
               }
@@ -44,7 +44,7 @@ const App = () => (
             <Route
               path="/crm"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredModule="crm">
                   <CRM />
                 </ProtectedRoute>
               }
@@ -52,7 +52,7 @@ const App = () => (
             <Route
               path="/clientes"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredModule="clients">
                   <Clientes />
                 </ProtectedRoute>
               }
@@ -60,7 +60,7 @@ const App = () => (
             <Route
               path="/configuracoes"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredModule="settings">
                   <Configuracoes />
                 </ProtectedRoute>
               }
@@ -68,7 +68,7 @@ const App = () => (
             <Route
               path="/admin"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredModule="admin">
                   <AdminDashboard />
                 </ProtectedRoute>
               }

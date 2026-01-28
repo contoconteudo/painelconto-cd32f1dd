@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { LEAD_STAGES, LEAD_TEMPERATURES } from "@/lib/constants";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface LeadDetailProps {
   open: boolean;
@@ -37,6 +38,7 @@ const temperatureIcons = {
 export function LeadDetail({ open, onOpenChange, lead, onUpdate, onDelete, onMoveToStage }: LeadDetailProps) {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const { canDelete } = usePermissions();
 
   if (!lead) return null;
 
@@ -171,14 +173,16 @@ export function LeadDetail({ open, onOpenChange, lead, onUpdate, onDelete, onMov
                 <Pencil className="h-4 w-4" />
                 Editar
               </Button>
-              <Button 
-                variant="outline" 
-                className="text-destructive hover:text-destructive gap-1.5"
-                onClick={() => setShowDeleteAlert(true)}
-              >
-                <Trash2 className="h-4 w-4" />
-                Excluir
-              </Button>
+              {canDelete && (
+                <Button 
+                  variant="outline" 
+                  className="text-destructive hover:text-destructive gap-1.5"
+                  onClick={() => setShowDeleteAlert(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Excluir
+                </Button>
+              )}
             </div>
           </div>
         </SheetContent>

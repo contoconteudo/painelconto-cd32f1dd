@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Project, UserRole } from '@/types';
+import { Project } from '@/types';
+import { AppRole } from '@/data/mockData';
 
 interface ProjectContextType {
   currentProject: Project | null;
   setCurrentProject: (project: Project) => void;
   projects: Project[];
   setProjects: (projects: Project[]) => void;
-  userRole: UserRole | null;
-  setUserRole: (role: UserRole) => void;
+  userRole: AppRole | null;
+  setUserRole: (role: AppRole) => void;
   userProjects: Project[];
   setUserProjects: (projects: Project[]) => void;
   loading: boolean;
@@ -32,7 +33,7 @@ const DEFAULT_PROJECT: Project = {
 export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) => {
   const [currentProject, setCurrentProject] = useState<Project | null>(DEFAULT_PROJECT);
   const [projects, setProjects] = useState<Project[]>([DEFAULT_PROJECT]);
-  const [userRole, setUserRole] = useState<UserRole | null>("admin");
+  const [userRole, setUserRole] = useState<AppRole | null>("admin");
   const [userProjects, setUserProjects] = useState<Project[]>([DEFAULT_PROJECT]);
   const [loading] = useState(false);
 

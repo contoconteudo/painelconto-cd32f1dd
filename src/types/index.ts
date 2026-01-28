@@ -1,4 +1,9 @@
-export type UserRole = 'admin' | 'user';
+/**
+ * Tipos centralizados do sistema.
+ * 
+ * NOTA: AppRole e ModulePermission estão definidos em @/data/mockData.ts
+ * para facilitar a transição para o backend.
+ */
 
 export interface Project {
   id: string;
@@ -6,12 +11,6 @@ export interface Project {
   description?: string;
   created_at: string;
   updated_at: string;
-}
-
-export interface User {
-  id: string;
-  email: string;
-  user_roles: UserRole[];
 }
 
 // Extracted types for external use
