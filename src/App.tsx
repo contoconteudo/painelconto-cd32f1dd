@@ -17,7 +17,6 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Evita backoff longo em telas que dependem de permissões
       retry: 0,
       refetchOnWindowFocus: false,
     },
@@ -30,7 +29,12 @@ const App = () => (
       <CompanyProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route
@@ -81,7 +85,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            {/* Redirect removed routes to home */}
             <Route path="/financeiro" element={<Navigate to="/" replace />} />
             <Route path="/projetos" element={<Navigate to="/" replace />} />
             <Route path="/relatorios" element={<Navigate to="/" replace />} />
