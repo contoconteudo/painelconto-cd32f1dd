@@ -96,54 +96,55 @@ export default function AdminDashboard() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // Buscar todos os usuários da tabela user_roles
+      // Buscar TODOS os usuários da tabela profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, created_at");
+
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError);
+        toast.error("Erro ao carregar usuários");
+        setLoading(false);
+        return;
+      }
+
+      // Buscar roles existentes
       const { data: userRoles, error: rolesError } = await supabase
         .from("user_roles")
-        .select("user_id, role, created_at");
+        .select("user_id, role");
 
       if (rolesError) {
         console.error("Error fetching user roles:", rolesError);
       }
 
-      // Buscar informações de usuários via função RPC ou auth admin (se disponível)
-      // Como não temos acesso direto ao auth.users, vamos usar os user_ids que temos
-      const usersMap = new Map<string, UserWithRole>();
-
-      // Adicionar usuários com roles
+      // Criar mapa de roles
+      const rolesMap = new Map<string, AppRole>();
       if (userRoles) {
         for (const ur of userRoles) {
-          usersMap.set(ur.user_id, {
-            id: ur.user_id,
-            email: `Usuário ${ur.user_id.slice(0, 8)}...`,
-            role: ur.role as AppRole,
-            created_at: ur.created_at,
-            modules: DEFAULT_PERMISSIONS[ur.role as AppRole] || [],
-          });
+          rolesMap.set(ur.user_id, ur.role as AppRole);
         }
       }
 
-      // Tentar buscar emails via profiles se existir
-      const userIds = Array.from(usersMap.keys());
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, email, full_name")
-          .in("id", userIds);
+      // Combinar dados
+      const combinedUsers: UserWithRole[] = (profiles || []).map((profile) => {
+        const role = rolesMap.get(profile.id) || null;
+        return {
+          id: profile.id,
+          email: profile.email || profile.full_name || `Usuário ${profile.id.slice(0, 8)}...`,
+          role,
+          created_at: profile.created_at,
+          modules: role ? DEFAULT_PERMISSIONS[role] : [],
+        };
+      });
 
-        if (profiles) {
-          for (const profile of profiles) {
-            const existing = usersMap.get(profile.id);
-            if (existing) {
-              usersMap.set(profile.id, {
-                ...existing,
-                email: profile.email || profile.full_name || existing.email,
-              });
-            }
-          }
-        }
-      }
+      // Ordenar: usuários sem role primeiro, depois por email
+      combinedUsers.sort((a, b) => {
+        if (!a.role && b.role) return -1;
+        if (a.role && !b.role) return 1;
+        return a.email.localeCompare(b.email);
+      });
 
-      setUsers(Array.from(usersMap.values()));
+      setUsers(combinedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast.error("Erro ao carregar usuários");
