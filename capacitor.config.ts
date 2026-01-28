@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.conto.painel',
-  appName: 'Painel Conto',
+  appId: 'app.lovable.b57cd4b811a642739262ee0200dad886',
+  appName: 'tempo-fly',
   webDir: 'dist',
   
   // Server configuration for development hot-reload
