@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Flame, Thermometer, Snowflake, Plus, Phone, Mail, Filter, X } from "lucide-react";
+import { Flame, Thermometer, Snowflake, Plus, Phone, Mail, Filter, X, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useLeads } from "@/hooks/useLeads";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { LEAD_STAGES, LEAD_TEMPERATURES, PIPELINE_STAGES } from "@/lib/constants";
 import { useProject } from "@/contexts/ProjectContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const TemperatureIcon = ({ temp }: { temp: "hot" | "warm" | "cold" }) => {
   const config = {
@@ -52,8 +53,9 @@ function LeadCard({
   return (
     <div 
       className={cn(
-        "bg-card rounded-lg p-3 border border-border/60 shadow-sm hover:shadow-md hover:border-border transition-all duration-200 cursor-grab group",
-        isDragging && "opacity-50 cursor-grabbing ring-2 ring-primary"
+        "bg-card rounded-lg p-3 border border-border/60 shadow-sm transition-all duration-200 cursor-pointer group touch-manipulation active-press",
+        isDragging && "opacity-50 ring-2 ring-primary",
+        "hover:shadow-md hover:border-border md:cursor-grab"
       )}
       onClick={onClick}
       draggable
@@ -84,29 +86,63 @@ function LeadCard({
         <p className="text-sm font-bold text-primary">
           R$ {lead.value.toLocaleString('pt-BR')}
         </p>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           {lead.phone && (
-            <button 
-              className="p-1.5 rounded hover:bg-muted transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(`tel:${lead.phone}`);
-              }}
+            <a 
+              href={`tel:${lead.phone}`}
+              className="p-2 rounded hover:bg-muted transition-colors touch-manipulation"
+              onClick={(e) => e.stopPropagation()}
             >
-              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
+              <Phone className="h-4 w-4 text-muted-foreground" />
+            </a>
           )}
           {lead.email && (
-            <button 
-              className="p-1.5 rounded hover:bg-muted transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(`mailto:${lead.email}`);
-              }}
+            <a 
+              href={`mailto:${lead.email}`}
+              className="p-2 rounded hover:bg-muted transition-colors touch-manipulation"
+              onClick={(e) => e.stopPropagation()}
             >
-              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
+              <Mail className="h-4 w-4 text-muted-foreground" />
+            </a>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Mobile Lead Card for list view
+function MobileLeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
+  return (
+    <div 
+      className="stat-card p-4 touch-manipulation active-press"
+      onClick={onClick}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-sm font-semibold text-foreground truncate">{lead.name}</p>
+            <TemperatureIcon temp={lead.temperature} />
+          </div>
+          <p className="text-xs text-muted-foreground truncate">{lead.company}</p>
+          <div className="flex items-center gap-2 mt-2">
+            <span className={cn(
+              "px-2 py-0.5 rounded text-[10px] font-medium",
+              LEAD_STAGES[lead.stage].color.replace('bg-', 'bg-').replace('/20', '/20'),
+              "text-foreground"
+            )}>
+              {LEAD_STAGES[lead.stage].name}
+            </span>
+            {lead.origin && (
+              <span className="text-[10px] text-muted-foreground">{lead.origin}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <p className="text-sm font-bold text-primary">
+            R$ {(lead.value / 1000).toFixed(0)}k
+          </p>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </div>
       </div>
     </div>
@@ -115,6 +151,7 @@ function LeadCard({
 
 export default function CRM() {
   const { currentProject } = useProject();
+  const isMobile = useIsMobile();
   const { leads, addLead, updateLead, deleteLead, moveLeadToStage, getLeadsByStage, getPipelineStats } = useLeads();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createFormStage, setCreateFormStage] = useState<LeadStage>("new");
@@ -126,6 +163,7 @@ export default function CRM() {
   // Filters
   const [temperatureFilter, setTemperatureFilter] = useState<LeadTemperature | "all">("all");
   const [originFilter, setOriginFilter] = useState<string>("all");
+  const [stageFilter, setStageFilter] = useState<LeadStage | "all">("all");
 
   // Get unique origins from leads
   const uniqueOrigins = useMemo(() => {
@@ -134,11 +172,12 @@ export default function CRM() {
   }, [leads]);
 
   // Check if any filter is active
-  const hasActiveFilters = temperatureFilter !== "all" || originFilter !== "all";
+  const hasActiveFilters = temperatureFilter !== "all" || originFilter !== "all" || stageFilter !== "all";
 
   const clearFilters = () => {
     setTemperatureFilter("all");
     setOriginFilter("all");
+    setStageFilter("all");
   };
 
   const handleDragStart = (leadId: string) => {
@@ -192,6 +231,25 @@ export default function CRM() {
     return stageLeads;
   };
 
+  // All filtered leads for mobile list view
+  const filteredLeads = useMemo(() => {
+    let filtered = leads;
+    
+    if (temperatureFilter !== "all") {
+      filtered = filtered.filter(lead => lead.temperature === temperatureFilter);
+    }
+    
+    if (originFilter !== "all") {
+      filtered = filtered.filter(lead => lead.origin === originFilter);
+    }
+    
+    if (stageFilter !== "all") {
+      filtered = filtered.filter(lead => lead.stage === stageFilter);
+    }
+    
+    return filtered;
+  }, [leads, temperatureFilter, originFilter, stageFilter]);
+
   const handleAddClick = (stage: LeadStage) => {
     setCreateFormStage(stage);
     setShowCreateForm(true);
@@ -204,36 +262,56 @@ export default function CRM() {
 
   return (
     <AppLayout title="CRM" subtitle="Pipeline de vendas">
-      {/* Header Stats */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-6">
-          <div>
-            <p className="text-sm text-muted-foreground">Total no Pipeline</p>
-            <p className="text-2xl font-bold text-foreground">R$ {stats.totalValue.toLocaleString('pt-BR')}</p>
+      {/* Header Stats - Responsive */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 md:mb-6">
+        <div className="flex items-center gap-4 md:gap-6 overflow-x-auto hide-scrollbar pb-2 sm:pb-0">
+          <div className="flex-shrink-0">
+            <p className="text-xs md:text-sm text-muted-foreground">Total Pipeline</p>
+            <p className="text-lg md:text-2xl font-bold text-foreground">R$ {(stats.totalValue / 1000).toFixed(0)}k</p>
           </div>
-          <div className="h-10 w-px bg-border" />
-          <div>
-            <p className="text-sm text-muted-foreground">Leads Ativos</p>
-            <p className="text-2xl font-bold text-foreground">{stats.inNegotiation}</p>
+          <div className="h-8 md:h-10 w-px bg-border flex-shrink-0" />
+          <div className="flex-shrink-0">
+            <p className="text-xs md:text-sm text-muted-foreground">Leads Ativos</p>
+            <p className="text-lg md:text-2xl font-bold text-foreground">{stats.inNegotiation}</p>
           </div>
-          <div className="h-10 w-px bg-border" />
-          <div>
-            <p className="text-sm text-muted-foreground">Taxa Conversão</p>
-            <p className="text-2xl font-bold text-success">{stats.conversionRate}%</p>
+          <div className="h-8 md:h-10 w-px bg-border flex-shrink-0" />
+          <div className="flex-shrink-0">
+            <p className="text-xs md:text-sm text-muted-foreground">Conversão</p>
+            <p className="text-lg md:text-2xl font-bold text-success">{stats.conversionRate}%</p>
           </div>
         </div>
-        <Button onClick={() => handleAddClick("new")} className="gradient-primary text-primary-foreground gap-1.5">
+        <Button 
+          onClick={() => handleAddClick("new")} 
+          className="gradient-primary text-primary-foreground gap-1.5 w-full sm:w-auto touch-manipulation"
+        >
           <Plus className="h-4 w-4" />
           Novo Lead
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
-        <Filter className="h-4 w-4 text-muted-foreground" />
+      {/* Filters - Responsive */}
+      <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-4">
+        <Filter className="h-4 w-4 text-muted-foreground hidden sm:block" />
+        
+        {/* Mobile stage filter */}
+        <Select 
+          value={stageFilter} 
+          onValueChange={(value) => setStageFilter(value as LeadStage | "all")}
+        >
+          <SelectTrigger className="w-[120px] md:w-[140px] h-9 text-xs md:text-sm">
+            <SelectValue placeholder="Etapa" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas etapas</SelectItem>
+            {PIPELINE_STAGES.map(stage => (
+              <SelectItem key={stage} value={stage}>{LEAD_STAGES[stage].name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
         <Select value={temperatureFilter} onValueChange={(value) => setTemperatureFilter(value as LeadTemperature | "all")}>
-          <SelectTrigger className="w-[140px] h-9">
-            <SelectValue placeholder="Temperatura" />
+          <SelectTrigger className="w-[100px] md:w-[140px] h-9 text-xs md:text-sm">
+            <SelectValue placeholder="Temp." />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas</SelectItem>
@@ -244,11 +322,11 @@ export default function CRM() {
         </Select>
         
         <Select value={originFilter} onValueChange={setOriginFilter}>
-          <SelectTrigger className="w-[160px] h-9">
+          <SelectTrigger className="w-[100px] md:w-[160px] h-9 text-xs md:text-sm">
             <SelectValue placeholder="Origem" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas origens</SelectItem>
+            <SelectItem value="all">Todas</SelectItem>
             {uniqueOrigins.map((origin) => (
               <SelectItem key={origin} value={origin}>{origin}</SelectItem>
             ))}
@@ -257,14 +335,31 @@ export default function CRM() {
 
         {hasActiveFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 px-2 text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4 mr-1" />
-            Limpar
+            <X className="h-4 w-4" />
+            <span className="hidden sm:inline ml-1">Limpar</span>
           </Button>
         )}
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      {/* Mobile List View */}
+      <div className="md:hidden space-y-3">
+        {filteredLeads.length === 0 ? (
+          <div className="stat-card text-center py-8">
+            <p className="text-muted-foreground">Nenhum lead encontrado</p>
+          </div>
+        ) : (
+          filteredLeads.map((lead) => (
+            <MobileLeadCard 
+              key={lead.id} 
+              lead={lead} 
+              onClick={() => handleLeadClick(lead)} 
+            />
+          ))
+        )}
+      </div>
+
+      {/* Desktop Kanban Board */}
+      <div className="hidden md:flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
         {PIPELINE_STAGES.map((stageKey) => {
           const config = LEAD_STAGES[stageKey];
           const stageLeads = getFilteredLeadsByStage(stageKey);

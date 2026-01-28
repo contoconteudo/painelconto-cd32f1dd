@@ -200,166 +200,207 @@ export default function AdminDashboard() {
       title="Administração"
       subtitle="Gerencie usuários, espaços e permissões do sistema"
     >
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         {/* Info Card */}
         <Alert className="bg-primary/5 border-primary/20">
           <Info className="h-4 w-4" />
-          <AlertDescription>
+          <AlertDescription className="text-xs md:text-sm">
             <strong>Como funciona:</strong> Administradores têm acesso total. 
-            Para outros usuários, você controla quais <strong>espaços</strong> (Conto/Amplia) e <strong>módulos</strong> eles podem acessar.
+            Para outros usuários, você controla quais <strong>espaços</strong> e <strong>módulos</strong> eles podem acessar.
           </AlertDescription>
         </Alert>
 
-        {/* Users Table */}
+        {/* Users Section */}
         <div className="stat-card">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              <h3 className="section-title">Usuários do Sistema</h3>
+              <Users className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+              <h3 className="text-sm md:text-base font-semibold">Usuários do Sistema</h3>
             </div>
             <Badge variant="outline" className="text-xs">
               {users.length} usuário(s)
             </Badge>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuário</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Espaços</TableHead>
-                <TableHead>Módulos</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{user.full_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {user.email}
-                      </p>
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {users.map((user) => (
+              <div key={user.id} className="p-3 bg-muted/30 rounded-lg border border-border/50">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{user.full_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <Badge
+                        variant="outline"
+                        className={cn("text-xs", getRoleBadgeStyle(user.role))}
+                      >
+                        {user.role}
+                      </Badge>
+                      {user.role === "admin" ? (
+                        <Badge variant="secondary" className="text-xs">Acesso Total</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          {user.modules.length} módulo(s)
+                        </span>
+                      )}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn(getRoleBadgeStyle(user.role))}
-                    >
-                      {user.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.role === "admin" ? (
-                      <Badge variant="secondary" className="text-xs">
-                        Todos
-                      </Badge>
-                    ) : user.companies.length === 0 ? (
-                      <span className="text-xs text-destructive italic">
-                        Nenhum
-                      </span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {user.companies.map((company) => {
-                          const companyInfo = spaces.find((c) => c.id === company);
-                          return (
-                            <Badge
-                              key={company}
-                              variant="outline"
-                              className={cn(
-                                "text-xs",
-                                companyInfo?.color ? `${companyInfo.color.replace('bg-', 'bg-')}/10 border-${companyInfo.color.replace('bg-', '')}/30` : ""
-                              )}
-                            >
-                              {companyInfo?.label || company}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {user.role === "admin" ? (
-                      <Badge variant="secondary" className="text-xs">
-                        Acesso Total
-                      </Badge>
-                    ) : user.modules.length === 0 ? (
-                      <span className="text-xs text-muted-foreground italic">
-                        Nenhum
-                      </span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {user.modules.slice(0, 2).map((module) => (
-                          <Badge
-                            key={module}
-                            variant="secondary"
-                            className="text-xs"
-                          >
-                            {ALL_MODULES.find((m) => m.id === module)?.label || module}
-                          </Badge>
-                        ))}
-                        {user.modules.length > 2 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{user.modules.length - 2}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditUser(user)}
-                      disabled={user.role === "admin"}
-                      title={user.role === "admin" ? "Admins têm acesso total" : "Editar permissões"}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditUser(user)}
+                    disabled={user.role === "admin"}
+                    className="h-8 w-8 p-0 flex-shrink-0"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuário</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Espaços</TableHead>
+                  <TableHead>Módulos</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{user.full_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user.email}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={cn(getRoleBadgeStyle(user.role))}
+                      >
+                        {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {user.role === "admin" ? (
+                        <Badge variant="secondary" className="text-xs">
+                          Todos
+                        </Badge>
+                      ) : user.companies.length === 0 ? (
+                        <span className="text-xs text-destructive italic">
+                          Nenhum
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {user.companies.map((company) => {
+                            const companyInfo = spaces.find((c) => c.id === company);
+                            return (
+                              <Badge
+                                key={company}
+                                variant="outline"
+                                className={cn(
+                                  "text-xs",
+                                  companyInfo?.color ? `${companyInfo.color.replace('bg-', 'bg-')}/10 border-${companyInfo.color.replace('bg-', '')}/30` : ""
+                                )}
+                              >
+                                {companyInfo?.label || company}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {user.role === "admin" ? (
+                        <Badge variant="secondary" className="text-xs">
+                          Acesso Total
+                        </Badge>
+                      ) : user.modules.length === 0 ? (
+                        <span className="text-xs text-muted-foreground italic">
+                          Nenhum
+                        </span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {user.modules.slice(0, 2).map((module) => (
+                            <Badge
+                              key={module}
+                              variant="secondary"
+                              className="text-xs"
+                            >
+                              {ALL_MODULES.find((m) => m.id === module)?.label || module}
+                            </Badge>
+                          ))}
+                          {user.modules.length > 2 && (
+                            <Badge variant="secondary" className="text-xs">
+                              +{user.modules.length - 2}
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditUser(user)}
+                        disabled={user.role === "admin"}
+                        title={user.role === "admin" ? "Admins têm acesso total" : "Editar permissões"}
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
 
         {/* Spaces Overview */}
         <div className="stat-card">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              <h3 className="section-title">Espaços Disponíveis</h3>
+              <Building2 className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+              <h3 className="text-sm md:text-base font-semibold">Espaços Disponíveis</h3>
             </div>
-            <Button size="sm" onClick={() => setShowNewSpaceDialog(true)}>
+            <Button size="sm" onClick={() => setShowNewSpaceDialog(true)} className="h-8 md:h-9 text-xs md:text-sm touch-manipulation">
               <Plus className="h-4 w-4 mr-1" />
-              Novo Espaço
+              <span className="hidden sm:inline">Novo </span>Espaço
             </Button>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {spaces.map((space) => (
               <div
                 key={space.id}
-                className="p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+                className="p-3 md:p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className={cn(
-                      "h-10 w-10 rounded-lg flex items-center justify-center",
+                      "h-8 w-8 md:h-10 md:w-10 rounded-lg flex items-center justify-center flex-shrink-0",
                       space.color
                     )}>
-                      <Building2 className="h-5 w-5 text-white" />
+                      <Building2 className="h-4 w-4 md:h-5 md:w-5 text-white" />
                     </div>
-                    <div>
-                      <p className="font-medium">{space.label}</p>
-                      <p className="text-sm text-muted-foreground">{space.description}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{space.label}</p>
+                      <p className="text-xs text-muted-foreground truncate">{space.description}</p>
                     </div>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0 touch-manipulation"
                     onClick={() => setDeletingSpace(space)}
                     title="Excluir espaço"
                   >
@@ -373,24 +414,24 @@ export default function AdminDashboard() {
 
         {/* Role Descriptions */}
         <div className="stat-card">
-          <h3 className="section-title mb-4">Níveis de Acesso</h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <h3 className="text-sm md:text-base font-semibold mb-4">Níveis de Acesso</h3>
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             {AVAILABLE_ROLES.map((role) => (
               <div
                 key={role.value}
-                className="p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+                className="p-3 md:p-4 rounded-lg border bg-card"
               >
                 <Badge
                   variant="outline"
-                  className={cn("mb-2", getRoleBadgeStyle(role.value))}
+                  className={cn("mb-2 text-xs", getRoleBadgeStyle(role.value))}
                 >
                   {role.label}
                 </Badge>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {role.description}
                 </p>
                 {role.value === "admin" && (
-                  <p className="text-xs text-primary mt-2 font-medium">
+                  <p className="text-[10px] md:text-xs text-primary mt-2 font-medium">
                     ✓ Acesso total automático
                   </p>
                 )}
@@ -402,7 +443,7 @@ export default function AdminDashboard() {
 
       {/* Edit User Dialog */}
       <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
-        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Permissões</DialogTitle>
             <DialogDescription>
@@ -619,7 +660,7 @@ export default function AdminDashboard() {
 
       {/* New Space Dialog */}
       <Dialog open={showNewSpaceDialog} onOpenChange={setShowNewSpaceDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-w-[95vw] sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Criar Novo Espaço</DialogTitle>
             <DialogDescription>
@@ -687,7 +728,7 @@ export default function AdminDashboard() {
 
       {/* Delete Space Confirmation Dialog */}
       <Dialog open={!!deletingSpace} onOpenChange={() => setDeletingSpace(null)}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="max-w-[95vw] sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Excluir Espaço</DialogTitle>
             <DialogDescription>

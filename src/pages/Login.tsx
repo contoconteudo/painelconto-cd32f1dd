@@ -51,47 +51,56 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="p-8 space-y-6 bg-card rounded-xl border border-border shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 safe-area-top safe-area-bottom">
+      <div className="w-full max-w-md space-y-4 md:space-y-6">
+        <div className="p-6 md:p-8 space-y-5 md:space-y-6 bg-card rounded-xl border border-border shadow-lg">
           <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold text-foreground">
+            <h1 className="text-xl md:text-2xl font-bold text-foreground">
               Conto Management System
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm md:text-base text-muted-foreground">
               {isSignUp ? "Crie sua conta" : "Faça login para continuar"}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-sm">Email</Label>
               <Input
                 id="email"
                 type="email"
+                inputMode="email"
+                autoComplete="email"
                 placeholder="seu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
+                className="h-11 md:h-10"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <Label htmlFor="password" className="text-sm">Senha</Label>
               <Input
                 id="password"
                 type="password"
+                autoComplete={isSignUp ? "new-password" : "current-password"}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
                 disabled={isLoading}
+                className="h-11 md:h-10"
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button 
+              type="submit" 
+              className="w-full h-11 md:h-10 touch-manipulation" 
+              disabled={isLoading}
+            >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSignUp ? "Criar Conta" : "Entrar"}
             </Button>
@@ -100,7 +109,7 @@ export default function Login() {
           <div className="text-center">
             <button
               type="button"
-              className="text-sm text-primary hover:underline"
+              className="text-sm text-primary hover:underline touch-manipulation py-2"
               onClick={() => setIsSignUp(!isSignUp)}
               disabled={isLoading}
             >
@@ -112,54 +121,54 @@ export default function Login() {
         </div>
 
         {/* Demo Users Card */}
-        <div className="p-6 bg-card/50 rounded-xl border border-border/50">
+        <div className="p-4 md:p-6 bg-card/50 rounded-xl border border-border/50">
           <Alert className="mb-4 bg-primary/5 border-primary/20">
             <Info className="h-4 w-4" />
-            <AlertDescription>
+            <AlertDescription className="text-xs md:text-sm">
               <strong>Modo Demonstração:</strong> Use um dos usuários abaixo para testar o sistema.
             </AlertDescription>
           </Alert>
           
-          <div className="grid gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
             <Button
               variant="outline"
               size="sm"
-              className="justify-between text-left"
+              className="justify-between text-left h-auto py-2.5 px-3 touch-manipulation"
               onClick={() => quickLogin("admin@conto.com.br", "admin123")}
               disabled={isLoading}
             >
-              <span className="font-medium">Admin</span>
-              <span className="text-xs text-muted-foreground">admin@conto.com.br</span>
+              <span className="font-medium text-xs">Admin</span>
+              <span className="text-[10px] md:text-xs text-muted-foreground hidden md:inline">admin@conto.com.br</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="justify-between text-left"
+              className="justify-between text-left h-auto py-2.5 px-3 touch-manipulation"
               onClick={() => quickLogin("gestor@conto.com.br", "gestor123")}
               disabled={isLoading}
             >
-              <span className="font-medium">Gestor</span>
-              <span className="text-xs text-muted-foreground">gestor@conto.com.br</span>
+              <span className="font-medium text-xs">Gestor</span>
+              <span className="text-[10px] md:text-xs text-muted-foreground hidden md:inline">gestor@conto.com.br</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="justify-between text-left"
+              className="justify-between text-left h-auto py-2.5 px-3 touch-manipulation"
               onClick={() => quickLogin("comercial@conto.com.br", "comercial123")}
               disabled={isLoading}
             >
-              <span className="font-medium">Comercial</span>
-              <span className="text-xs text-muted-foreground">comercial@conto.com.br</span>
+              <span className="font-medium text-xs">Comercial</span>
+              <span className="text-[10px] md:text-xs text-muted-foreground hidden md:inline">comercial@conto.com.br</span>
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="justify-between text-left"
+              className="justify-between text-left h-auto py-2.5 px-3 touch-manipulation"
               onClick={() => quickLogin("analista@conto.com.br", "analista123")}
               disabled={isLoading}
             >
-              <span className="font-medium">Analista</span>
-              <span className="text-xs text-muted-foreground">analista@conto.com.br</span>
+              <span className="font-medium text-xs">Analista</span>
+              <span className="text-[10px] md:text-xs text-muted-foreground hidden md:inline">analista@conto.com.br</span>
             </Button>
           </div>
         </div>

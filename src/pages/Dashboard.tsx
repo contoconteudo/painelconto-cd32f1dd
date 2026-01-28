@@ -22,8 +22,8 @@ export default function Dashboard() {
 
   return (
     <AppLayout title="Dashboard" subtitle="Visão geral das metas e operação comercial">
-      {/* KPI Cards - Focados em Metas e CRM */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      {/* KPI Cards - Responsive grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
         <StatCard
           title="Leads em Negociação"
           value={leadStats.inNegotiation.toString()}
@@ -31,17 +31,17 @@ export default function Dashboard() {
             value: `${leadStats.totalLeads} no pipeline total`, 
             isPositive: true 
           }}
-          icon={<Users className="h-5 w-5" />}
+          icon={<Users className="h-4 w-4 md:h-5 md:w-5" />}
           iconClassName="gradient-primary text-primary-foreground"
         />
         <StatCard
           title="Valor em Pipeline"
-          value={`R$ ${leadStats.totalValue.toLocaleString('pt-BR')}`}
+          value={`R$ ${(leadStats.totalValue / 1000).toFixed(0)}k`}
           trend={{ 
             value: `${leadStats.wonCount} fechado(s)`, 
             isPositive: true 
           }}
-          icon={<DollarSign className="h-5 w-5" />}
+          icon={<DollarSign className="h-4 w-4 md:h-5 md:w-5" />}
           iconClassName="bg-success/10 text-success"
         />
         <StatCard
@@ -51,7 +51,7 @@ export default function Dashboard() {
             value: "Aguardando resposta", 
             isPositive: true 
           }}
-          icon={<FileText className="h-5 w-5" />}
+          icon={<FileText className="h-4 w-4 md:h-5 md:w-5" />}
           iconClassName="bg-warning/10 text-warning"
         />
         <StatCard
@@ -61,7 +61,7 @@ export default function Dashboard() {
             value: leadStats.conversionRate >= 20 ? "Acima da média" : "Abaixo da média", 
             isPositive: leadStats.conversionRate >= 20 
           }}
-          icon={<TrendingUp className="h-5 w-5" />}
+          icon={<TrendingUp className="h-4 w-4 md:h-5 md:w-5" />}
           iconClassName="bg-primary/10 text-primary"
         />
         <StatCard
@@ -71,8 +71,9 @@ export default function Dashboard() {
             value: clientStats.avgNPS >= 8 ? "Excelente" : clientStats.avgNPS >= 6 ? "Bom" : "Precisa melhorar", 
             isPositive: clientStats.avgNPS >= 7 
           }}
-          icon={<Star className="h-5 w-5" />}
+          icon={<Star className="h-4 w-4 md:h-5 md:w-5" />}
           iconClassName="bg-accent/10 text-accent-foreground"
+          className="col-span-2 sm:col-span-1"
         />
       </div>
 
@@ -83,8 +84,8 @@ export default function Dashboard() {
 
       {/* Resumo de Dados */}
       {(leadStats.totalLeads === 0 && clientStats.activeCount === 0 && objectives.length === 0) && (
-        <div className="stat-card text-center py-8">
-          <p className="text-muted-foreground">
+        <div className="stat-card text-center py-6 md:py-8">
+          <p className="text-sm md:text-base text-muted-foreground">
             Nenhum dado cadastrado ainda. Comece adicionando leads no CRM, clientes ou objetivos estratégicos.
           </p>
         </div>
