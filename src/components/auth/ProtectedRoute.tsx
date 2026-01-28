@@ -12,10 +12,15 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, requiredModule }: ProtectedRouteProps) {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, signOut } = useAuth();
   const { canAccessModule, isLoading: roleLoading, isAdmin } = useUserRole();
 
   const isLoading = authLoading || roleLoading;
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
+  };
 
   if (isLoading) {
     return (
@@ -42,8 +47,8 @@ export function ProtectedRoute({ children, requiredModule }: ProtectedRouteProps
             Você não tem permissão para acessar este módulo. 
             Entre em contato com o administrador para solicitar acesso.
           </p>
-          <Button onClick={() => navigate("/")} variant="outline">
-            Ir para Início
+          <Button onClick={handleLogout} variant="outline">
+            Sair e Fazer Login
           </Button>
         </div>
       </div>
