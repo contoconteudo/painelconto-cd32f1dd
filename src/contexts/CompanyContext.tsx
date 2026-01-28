@@ -1,17 +1,16 @@
+/**
+ * Contexto de Empresa/Espaço - MODO MOCK
+ * 
+ * TODO: Conectar Supabase depois
+ * Atualmente usa dados mockados e localStorage.
+ */
+
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/lib/supabase";
+import { useAuth, getMockUserById } from "@/hooks/useAuth";
+import { getAllSpaces, Space } from "@/hooks/useSpaces";
 
 export type Company = string;
-
-export interface Space {
-  id: string;
-  label: string;
-  description: string;
-  color: string;
-  createdAt: string;
-  user_id?: string;
-}
+export type { Space };
 
 interface CompanyContextType {
   currentCompany: Company;
@@ -39,7 +38,7 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Carregar espaços e permissões do Supabase
+  // Carregar espaços e permissões
   const loadSpacesAndPermissions = useCallback(async () => {
     if (!user?.id) {
       setAvailableSpaces([]);
@@ -49,65 +48,45 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
       return;
     }
 
-    try {
-      // Verificar se é admin
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .maybeSingle();
+    // Buscar dados do usuário mock
+    const mockUser = getMockUserById(user.id);
+    const userIsAdmin = mockUser?.role === "admin";
+    setIsAdmin(userIsAdmin);
 
-      const userIsAdmin = (roleData as any)?.role === "admin";
-      setIsAdmin(userIsAdmin);
+    // Carregar espaços
+    const spaces = getAllSpaces();
+    setAvailableSpaces(spaces);
 
-      // Admin vê todos os espaços, usuário normal vê apenas os próprios
-      let query = supabase.from("spaces").select("*").order("created_at", { ascending: true });
-      
-      if (!userIsAdmin) {
-        query = query.eq("user_id", user.id);
-      }
-
-      const { data: spacesData, error: spacesError } = await query;
-
-      if (spacesError) {
-        console.error("Erro ao carregar espaços:", spacesError);
-        setAvailableSpaces([]);
-        setAllowedCompanies([]);
-      } else if (spacesData && spacesData.length > 0) {
-        const spaces: Space[] = spacesData.map((s: any) => ({
-          id: s.id,
-          label: s.label,
-          description: s.description || "",
-          color: s.color || "#c4378f",
-          createdAt: s.created_at,
-          user_id: s.user_id,
-        }));
-        
-        setAvailableSpaces(spaces);
-        setAllowedCompanies(spaces.map(s => s.id));
-
-        // Definir empresa atual
-        const savedCompany = localStorage.getItem(STORAGE_KEY);
-        const spaceIds = spaces.map(s => s.id);
-        
-        if (savedCompany && spaceIds.includes(savedCompany)) {
-          setCurrentCompanyState(savedCompany);
-        } else if (spaceIds.length > 0) {
-          setCurrentCompanyState(spaceIds[0]);
-          localStorage.setItem(STORAGE_KEY, spaceIds[0]);
-        }
-      } else {
-        // Nenhum espaço encontrado
-        setAvailableSpaces([]);
-        setAllowedCompanies([]);
-      }
-    } catch (err) {
-      console.error("Erro ao carregar permissões:", err);
-      setAvailableSpaces([]);
-      setAllowedCompanies([]);
-    } finally {
-      setIsLoading(false);
+    // Determinar espaços permitidos
+    let allowed: string[];
+    if (userIsAdmin) {
+      // Admin tem acesso a todos os espaços
+      allowed = spaces.map(s => s.id);
+    } else if (mockUser) {
+      // Usuário normal: verificar permissões
+      allowed = mockUser.companies.filter(c => spaces.some(s => s.id === c));
+    } else {
+      // Novo usuário sem configuração
+      allowed = [];
     }
+
+    setAllowedCompanies(allowed);
+
+    // Definir empresa atual
+    const savedCompany = localStorage.getItem(STORAGE_KEY);
+    
+    if (savedCompany && allowed.includes(savedCompany)) {
+      setCurrentCompanyState(savedCompany);
+    } else if (allowed.length > 0) {
+      setCurrentCompanyState(allowed[0]);
+      localStorage.setItem(STORAGE_KEY, allowed[0]);
+    } else if (spaces.length > 0) {
+      // Fallback para primeiro espaço disponível
+      setCurrentCompanyState(spaces[0].id);
+      localStorage.setItem(STORAGE_KEY, spaces[0].id);
+    }
+
+    setIsLoading(false);
   }, [user?.id]);
 
   // Carregar na inicialização e quando o usuário mudar

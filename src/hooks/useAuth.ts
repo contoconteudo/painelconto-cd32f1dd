@@ -1,6 +1,12 @@
+/**
+ * Hook de Autenticação - MODO MOCK
+ * 
+ * TODO: Conectar Supabase depois
+ * Atualmente usa dados mockados para desenvolvimento.
+ */
+
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
-import { User, Session } from "@supabase/supabase-js";
+import { MOCK_USERS, MockUser } from "@/data/mockData";
 
 export interface AuthUser {
   id: string;
@@ -8,108 +14,158 @@ export interface AuthUser {
   full_name: string;
 }
 
+const AUTH_STORAGE_KEY = "conto-auth-user";
+const REGISTERED_USERS_KEY = "conto-registered-users";
+
+// Obter usuários registrados do localStorage
+const getRegisteredUsers = (): MockUser[] => {
+  try {
+    const stored = localStorage.getItem(REGISTERED_USERS_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch {
+    // Ignorar erros de parse
+  }
+  return [];
+};
+
+// Salvar usuário registrado
+const saveRegisteredUser = (user: MockUser) => {
+  const users = getRegisteredUsers();
+  users.push(user);
+  localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(users));
+};
+
+// Obter todos os usuários (mock + registrados)
+const getAllUsers = (): MockUser[] => {
+  return [...MOCK_USERS, ...getRegisteredUsers()];
+};
+
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Converter User do Supabase para AuthUser
-  const mapUser = (supaUser: User | null): AuthUser | null => {
-    if (!supaUser) return null;
-    return {
-      id: supaUser.id,
-      email: supaUser.email || "",
-      full_name: supaUser.user_metadata?.name || 
-                 supaUser.user_metadata?.full_name || 
-                 supaUser.email?.split("@")[0] || "",
-    };
-  };
-
-  // Listener de mudança de autenticação
+  // Carregar usuário salvo no localStorage
   useEffect(() => {
-    // Configurar listener ANTES de verificar sessão
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        setUser(mapUser(newSession?.user || null));
-        setIsLoading(false);
-
-        // Disparar evento para outros componentes
-        window.dispatchEvent(
-          new CustomEvent("auth-user-changed", { 
-            detail: mapUser(newSession?.user || null) 
-          })
-        );
+    try {
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (stored) {
+        const parsedUser = JSON.parse(stored);
+        setUser(parsedUser);
       }
-    );
-
-    // Verificar sessão existente
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      setUser(mapUser(currentSession?.user || null));
+    } catch {
+      // Ignorar erros de parse
+    } finally {
       setIsLoading(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    }
   }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<void> => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    // Simular delay de rede
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    if (error) {
-      if (error.message.includes("Invalid login credentials")) {
-        throw new Error("Email ou senha incorretos");
-      }
-      throw new Error(error.message);
+    const allUsers = getAllUsers();
+    const foundUser = allUsers.find(
+      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+    );
+
+    if (!foundUser) {
+      throw new Error("Email ou senha incorretos");
     }
+
+    const authUser: AuthUser = {
+      id: foundUser.id,
+      email: foundUser.email,
+      full_name: foundUser.full_name,
+    };
+
+    setUser(authUser);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
+
+    // Disparar evento para outros componentes
+    window.dispatchEvent(
+      new CustomEvent("auth-user-changed", { detail: authUser })
+    );
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, name?: string): Promise<void> => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name: name || email.split("@")[0],
-          full_name: name || email.split("@")[0],
-        },
-        emailRedirectTo: window.location.origin,
-      },
-    });
+    // Simular delay de rede
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    if (error) {
-      if (error.message.includes("already registered")) {
-        throw new Error("Este e-mail já está cadastrado no sistema");
-      }
-      throw new Error(error.message);
+    const allUsers = getAllUsers();
+    const existingUser = allUsers.find(
+      u => u.email.toLowerCase() === email.toLowerCase()
+    );
+
+    if (existingUser) {
+      throw new Error("Este e-mail já está cadastrado no sistema");
     }
+
+    // Criar novo usuário
+    const newUser: MockUser = {
+      id: `user-${Date.now()}`,
+      email: email.toLowerCase(),
+      password,
+      full_name: name || email.split("@")[0],
+      role: "user",
+      modules: ["dashboard"],
+      companies: [], // Sem acesso até admin liberar
+      created_at: new Date().toISOString(),
+    };
+
+    // Salvar no localStorage
+    saveRegisteredUser(newUser);
+
+    // Fazer login automático
+    const authUser: AuthUser = {
+      id: newUser.id,
+      email: newUser.email,
+      full_name: newUser.full_name,
+    };
+
+    setUser(authUser);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authUser));
+
+    // Disparar evento para outros componentes
+    window.dispatchEvent(
+      new CustomEvent("auth-user-changed", { detail: authUser })
+    );
   }, []);
 
   const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw new Error(error.message);
-    }
+    // Simular delay de rede
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    setUser(null);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+
+    // Disparar evento para outros componentes
+    window.dispatchEvent(
+      new CustomEvent("auth-user-changed", { detail: null })
+    );
   }, []);
 
   const resetPassword = useCallback(async (email: string): Promise<void> => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
+    // Simular delay de rede
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    if (error) {
-      throw new Error(error.message);
+    const allUsers = getAllUsers();
+    const foundUser = allUsers.find(
+      u => u.email.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!foundUser) {
+      throw new Error("E-mail não encontrado no sistema");
     }
+
+    // Em modo mock, apenas simula o envio
+    console.log(`[MOCK] Email de recuperação enviado para: ${email}`);
   }, []);
 
   return {
     user,
-    session,
+    session: user ? { user } : null, // Compatibilidade
     isLoading,
     signIn,
     signUp,
@@ -118,3 +174,11 @@ export function useAuth() {
     isAuthenticated: !!user,
   };
 }
+
+// Exportar função para obter usuário mock pelo ID
+export const getMockUserById = (id: string): MockUser | undefined => {
+  return getAllUsers().find(u => u.id === id);
+};
+
+// Exportar função para obter todos os usuários
+export const getAllMockUsers = getAllUsers;
