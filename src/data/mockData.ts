@@ -14,8 +14,8 @@ import { Lead, Client, Objective, NPSRecord } from "@/types";
 // USUÁRIOS MOCKADOS
 // ============================================
 
-export type AppRole = "admin" | "gestor" | "comercial" | "analista";
-export type ModulePermission = "dashboard" | "crm" | "clients" | "objectives" | "strategy" | "settings" | "admin";
+export type AppRole = "admin" | "gestor" | "comercial" | "analista" | "user";
+export type ModulePermission = "dashboard" | "crm" | "clients" | "objectives" | "strategy" | "settings" | "admin" | "clientes" | "estrategia";
 // CompanyAccess agora é string para suportar espaços dinâmicos
 export type CompanyAccess = string;
 
@@ -119,6 +119,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AppRole, ModulePermission[]> = {
   gestor: ["dashboard", "strategy", "crm", "clients", "settings"],
   comercial: ["dashboard", "crm", "clients", "settings"],
   analista: ["dashboard", "settings"],
+  user: ["dashboard"],
 };
 
 // Storage key para permissões de usuários

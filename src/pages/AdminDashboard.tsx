@@ -155,8 +155,8 @@ export default function AdminDashboard() {
   };
 
   // Handlers para gestão de espaços
-  const handleCreateSpace = () => {
-    const result = createSpace(newSpaceName, newSpaceDescription, newSpaceColor);
+  const handleCreateSpace = async () => {
+    const result = await createSpace(newSpaceName, newSpaceDescription, newSpaceColor);
     
     if (result.success) {
       toast.success(`Espaço "${result.space?.label}" criado com sucesso!`);
@@ -169,10 +169,10 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteSpace = () => {
+  const handleDeleteSpace = async () => {
     if (!deletingSpace) return;
     
-    const result = deleteSpace(deletingSpace.id);
+    const result = await deleteSpace(deletingSpace.id);
     
     if (result.success) {
       toast.success(`Espaço "${deletingSpace.label}" excluído!`);
