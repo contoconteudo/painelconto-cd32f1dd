@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, ModulePermission } from "@/hooks/useUserRole";
 import { Loader2, ShieldX } from "lucide-react";
@@ -11,6 +11,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredModule }: ProtectedRouteProps) {
+  const navigate = useNavigate();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { canAccessModule, isLoading: roleLoading, isAdmin } = useUserRole();
 
@@ -41,8 +42,8 @@ export function ProtectedRoute({ children, requiredModule }: ProtectedRouteProps
             Você não tem permissão para acessar este módulo. 
             Entre em contato com o administrador para solicitar acesso.
           </p>
-          <Button onClick={() => window.history.back()} variant="outline">
-            Voltar
+          <Button onClick={() => navigate("/")} variant="outline">
+            Ir para Início
           </Button>
         </div>
       </div>
