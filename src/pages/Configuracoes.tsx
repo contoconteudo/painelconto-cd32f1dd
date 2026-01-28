@@ -1,9 +1,8 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { User, Link, Bell, Shield } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { useProject } from "@/contexts/ProjectContext";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const settingsSections = [
   {
@@ -27,12 +26,12 @@ const settingsSections = [
 ];
 
 export default function Configuracoes() {
-  const { userRole } = useProject();
+  const { isAdmin } = useUserRole();
 
   return (
     <AppLayout title="Configurações" subtitle="Administração do sistema">
       {/* Admin Dashboard Link */}
-      {userRole === 'admin' && (
+      {isAdmin && (
         <div className="mb-4 md:mb-6">
           <Button 
             variant="outline" 

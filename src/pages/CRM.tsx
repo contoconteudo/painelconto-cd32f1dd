@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LEAD_STAGES, LEAD_TEMPERATURES, PIPELINE_STAGES } from "@/lib/constants";
-import { useProject } from "@/contexts/ProjectContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const TemperatureIcon = ({ temp }: { temp: "hot" | "warm" | "cold" }) => {
@@ -150,7 +149,6 @@ function MobileLeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) 
 }
 
 export default function CRM() {
-  const { currentProject } = useProject();
   const isMobile = useIsMobile();
   const { leads, addLead, updateLead, deleteLead, moveLeadToStage, getLeadsByStage, getPipelineStats } = useLeads();
   const [showCreateForm, setShowCreateForm] = useState(false);
