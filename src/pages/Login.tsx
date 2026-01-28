@@ -35,15 +35,15 @@ export default function Login() {
         toast.success("Login realizado com sucesso!");
       }
       
-      // Redirecionamento forçado e imperativo após sucesso
-      // Usa window.location.href para garantir um reset completo do estado
-      window.location.href = "/";
+      // Redirecionamento forçado - aguarda um pequeno delay para o cache atualizar
+      setTimeout(() => {
+        window.location.replace("/");
+      }, 100);
     } catch (error: any) {
       console.error("Erro de autenticação:", error);
       toast.error(error.message || "Erro ao processar solicitação");
       setIsLoading(false);
     }
-    // Nota: Não resetamos isLoading no sucesso pois o redirecionamento vai desmontar o componente
   };
 
   // Mostrar loading apenas durante verificação inicial de sessão existente

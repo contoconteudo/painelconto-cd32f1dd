@@ -135,21 +135,37 @@ export function useUserSession() {
         };
       }
 
-      const permissions = await fetchUserSession(user.id);
-      
-      return {
-        user: {
-          id: user.id,
-          email: user.email || "",
-          fullName: user.user_metadata?.full_name || user.email?.split("@")[0] || "",
-        },
-        ...permissions,
-      };
+      try {
+        const permissions = await fetchUserSession(user.id);
+        
+        return {
+          user: {
+            id: user.id,
+            email: user.email || "",
+            fullName: user.user_metadata?.full_name || user.email?.split("@")[0] || "",
+          },
+          ...permissions,
+        };
+      } catch (error) {
+        console.error("Erro ao carregar permissões:", error);
+        // Retornar usuário autenticado mesmo sem permissões para evitar loading infinito
+        return {
+          user: {
+            id: user.id,
+            email: user.email || "",
+            fullName: user.user_metadata?.full_name || user.email?.split("@")[0] || "",
+          },
+          role: null,
+          modules: [],
+          spaces: [],
+          isAdmin: false,
+        };
+      }
     },
     staleTime: 5 * 60 * 1000, // 5 minutos
     gcTime: 10 * 60 * 1000, // 10 minutos
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 0, // Sem retry para evitar loading infinito
   });
 
   // Query para espaços disponíveis - com cache de 10 minutos
