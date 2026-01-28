@@ -62,32 +62,51 @@ export function useUserRole(): UseUserRoleReturn {
       return [];
     }
 
-    // Buscar roles e permissões em paralelo para todos os usuários
-    const usersWithRoles = await Promise.all(
-      (profiles || []).map(async (profile) => {
-        const [roleResult, permResult] = await Promise.all([
-          supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", profile.id)
-            .maybeSingle(),
-          supabase
-            .from("user_permissions")
-            .select("allowed_modules, allowed_spaces")
-            .eq("user_id", profile.id)
-            .maybeSingle(),
-        ]);
+    const profileList = profiles || [];
+    if (profileList.length === 0) return [];
 
-        return {
-          ...profile,
-          role: (roleResult.data?.role as AppRole) || null,
-          modules: (permResult.data?.allowed_modules || []) as ModulePermission[],
-          companies: permResult.data?.allowed_spaces || [],
-        };
-      })
-    );
+    const userIds = profileList.map((p) => p.id);
 
-    return usersWithRoles;
+    // Evita padrão N+1: 3 queries no total (profiles + roles + permissions)
+    const [rolesRes, permsRes] = await Promise.all([
+      supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", userIds),
+      supabase
+        // Select * para tolerar drift de schema (modules/spaces vs allowed_modules/allowed_spaces)
+        .from("user_permissions")
+        .select("*")
+        .in("user_id", userIds),
+    ]);
+
+    if (rolesRes.error) console.error("Erro ao buscar roles:", rolesRes.error);
+    if (permsRes.error) console.error("Erro ao buscar permissões:", permsRes.error);
+
+    const roleByUser = new Map<string, AppRole>();
+    (rolesRes.data || []).forEach((r: any) => {
+      if (!roleByUser.has(r.user_id)) {
+        roleByUser.set(r.user_id, r.role as AppRole);
+      }
+    });
+
+    const permByUser = new Map<string, any>();
+    (permsRes.data || []).forEach((p: any) => {
+      permByUser.set(p.user_id, p);
+    });
+
+    return profileList.map((profile) => {
+      const perm = permByUser.get(profile.id);
+      const modules = (perm?.allowed_modules ?? perm?.modules ?? []) as ModulePermission[];
+      const companies = (perm?.allowed_spaces ?? perm?.spaces ?? []) as CompanyAccess[];
+
+      return {
+        ...profile,
+        role: roleByUser.get(profile.id) || null,
+        modules,
+        companies,
+      };
+    });
   }, []);
 
   const updateUserPermissions = useCallback(async (

@@ -3,7 +3,7 @@
  * Usa useUserSession para evitar queries duplicadas.
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from "react";
 import { useUserSession } from "@/hooks/useUserSession";
 
 export type Company = string;
@@ -39,22 +39,25 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
   });
 
   // Mapear espaços disponíveis
-  const availableSpaces: Space[] = session.availableSpaces.map(s => ({
-    id: s.id,
-    label: s.label,
-    description: s.description || "",
-    color: s.color || "bg-primary",
-  }));
+  const availableSpaces: Space[] = useMemo(() => {
+    return session.availableSpaces.map((s) => ({
+      id: s.id,
+      label: s.label,
+      description: s.description || "",
+      color: s.color || "bg-primary",
+    }));
+  }, [session.availableSpaces]);
+
+  const availableSpaceIds = useMemo(() => availableSpaces.map((s) => s.id), [availableSpaces]);
 
   // Atualizar empresa selecionada quando dados carregarem
   useEffect(() => {
     if (session.isLoading || session.spacesLoading) return;
 
-    const spaceIds = availableSpaces.map(s => s.id);
     const savedCompany = localStorage.getItem(STORAGE_KEY);
     
     // Se a empresa salva é válida, mantém
-    if (savedCompany && spaceIds.includes(savedCompany)) {
+    if (savedCompany && availableSpaceIds.includes(savedCompany)) {
       if (currentCompany !== savedCompany) {
         setCurrentCompanyState(savedCompany);
       }
@@ -62,13 +65,13 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
     }
     
     // Senão, seleciona a primeira disponível
-    if (spaceIds.length > 0 && !spaceIds.includes(currentCompany)) {
-      setCurrentCompanyState(spaceIds[0]);
-      localStorage.setItem(STORAGE_KEY, spaceIds[0]);
+    if (availableSpaceIds.length > 0 && !availableSpaceIds.includes(currentCompany)) {
+      setCurrentCompanyState(availableSpaceIds[0]);
+      localStorage.setItem(STORAGE_KEY, availableSpaceIds[0]);
     }
-  }, [session.isLoading, session.spacesLoading, availableSpaces, currentCompany]);
+  }, [session.isLoading, session.spacesLoading, availableSpaceIds, currentCompany]);
 
-  const setCurrentCompany = (company: Company) => {
+  const setCurrentCompany = useCallback((company: Company) => {
     // Verificar se o usuário tem acesso
     if (!session.isAdmin && !session.allowedSpaces.includes(company)) {
       console.warn(`Usuário não tem acesso ao espaço ${company}`);
@@ -77,18 +80,21 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
     
     setCurrentCompanyState(company);
     localStorage.setItem(STORAGE_KEY, company);
-  };
+  }, [session.isAdmin, session.allowedSpaces]);
+
+  const contextValue = useMemo<CompanyContextType>(() => ({
+    currentCompany,
+    setCurrentCompany,
+    allowedCompanies: session.allowedSpaces,
+    availableSpaces,
+    isAdmin: session.isAdmin,
+    // Evita bloquear toda a UI enquanto spaces ainda carregam; o app já pode renderizar.
+    isLoading: session.isLoading,
+  }), [currentCompany, setCurrentCompany, session.allowedSpaces, availableSpaces, session.isAdmin, session.isLoading]);
 
   return (
     <CompanyContext.Provider
-      value={{
-        currentCompany,
-        setCurrentCompany,
-        allowedCompanies: session.allowedSpaces,
-        availableSpaces,
-        isAdmin: session.isAdmin,
-        isLoading: session.isLoading || session.spacesLoading,
-      }}
+      value={contextValue}
     >
       {children}
     </CompanyContext.Provider>

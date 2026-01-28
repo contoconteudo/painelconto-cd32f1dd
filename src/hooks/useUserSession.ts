@@ -23,13 +23,31 @@ export interface UserSession {
   isAdmin: boolean;
 }
 
+type NormalizedSpace = {
+  id: string;
+  label: string;
+  description: string;
+  color: string;
+  created_at?: string;
+};
+
+const ALL_MODULES: ModulePermission[] = [
+  "dashboard",
+  "crm",
+  "clients",
+  "objectives",
+  "strategy",
+  "settings",
+  "admin",
+];
+
 const QUERY_KEY = ["user-session"];
 const SPACES_KEY = ["available-spaces"];
 
 // Carregar dados de permissão do usuário em uma única query otimizada
 async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user">> {
   // Buscar role e permissões em paralelo
-  const [roleResult, permResult, spacesResult] = await Promise.all([
+  const [roleResult, permResult] = await Promise.all([
     supabase
       .from("user_roles")
       .select("role")
@@ -37,42 +55,43 @@ async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user
       .maybeSingle(),
     supabase
       .from("user_permissions")
-      .select("allowed_modules, allowed_spaces")
+      // Select * para tolerar drift de schema (ex.: modules/spaces vs allowed_modules/allowed_spaces)
+      .select("*")
       .eq("user_id", userId)
       .maybeSingle(),
-    supabase
-      .from("spaces")
-      .select("id")
   ]);
 
   const role = (roleResult.data?.role as AppRole) || null;
   const isAdmin = role === "admin";
+
+  const rawModules = (permResult.data as any)?.allowed_modules ?? (permResult.data as any)?.modules ?? [];
+  const rawSpaces = (permResult.data as any)?.allowed_spaces ?? (permResult.data as any)?.spaces ?? [];
   
   // Se admin, tem acesso total
   if (isAdmin) {
-    const allSpaceIds = spacesResult.data?.map(s => s.id) || [];
-    const allModules: ModulePermission[] = ["dashboard", "strategy", "crm", "clients", "settings", "admin"];
     return {
       role,
-      modules: allModules,
-      spaces: allSpaceIds,
+      modules: ALL_MODULES,
+      // spaces será resolvido a partir de availableSpaces (query separada)
+      spaces: [],
       isAdmin: true,
     };
   }
 
   return {
     role,
-    modules: (permResult.data?.allowed_modules || []) as ModulePermission[],
-    spaces: permResult.data?.allowed_spaces || [],
+    modules: (rawModules || []) as ModulePermission[],
+    spaces: (rawSpaces || []) as string[],
     isAdmin: false,
   };
 }
 
 // Carregar espaços disponíveis
 async function fetchAvailableSpaces() {
+  // Select * para evitar quebrar o app quando o schema real diverge (ex.: label vs name)
   const { data, error } = await supabase
     .from("spaces")
-    .select("id, label, description, color, created_at")
+    .select("*")
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -80,7 +99,18 @@ async function fetchAvailableSpaces() {
     return [];
   }
 
-  return data || [];
+  const rows = (data || []) as Array<Record<string, any>>;
+  const normalized: NormalizedSpace[] = rows
+    .filter((row) => !!row?.id)
+    .map((row) => ({
+      id: String(row.id),
+      label: String(row.label ?? row.name ?? row.title ?? row.id),
+      description: String(row.description ?? ""),
+      color: String(row.color ?? "bg-primary"),
+      created_at: row.created_at ? String(row.created_at) : undefined,
+    }));
+
+  return normalized;
 }
 
 export function useUserSession() {
@@ -123,10 +153,19 @@ export function useUserSession() {
   const spacesQuery = useQuery({
     queryKey: SPACES_KEY,
     queryFn: fetchAvailableSpaces,
+    // Não buscar espaços enquanto não estiver autenticado (evita chamadas no /login)
+    enabled: sessionQuery.isSuccess && !!sessionQuery.data?.user,
     staleTime: 10 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     refetchOnWindowFocus: false,
+    // Falha de spaces não pode travar o app por 30s via backoff/retry
+    retry: 0,
   });
+
+  const availableSpaces = spacesQuery.data || [];
+  const allowedSpaces = sessionQuery.data?.isAdmin
+    ? availableSpaces.map((s) => s.id)
+    : (sessionQuery.data?.spaces || []);
 
   // Escutar mudanças de autenticação
   useEffect(() => {
@@ -174,8 +213,8 @@ export function useUserSession() {
   const canAccessSpace = useCallback((spaceId: string): boolean => {
     if (!sessionQuery.data?.role) return false;
     if (sessionQuery.data.isAdmin) return true;
-    return sessionQuery.data.spaces.includes(spaceId);
-  }, [sessionQuery.data]);
+    return allowedSpaces.includes(spaceId);
+  }, [sessionQuery.data?.role, sessionQuery.data?.isAdmin, allowedSpaces]);
 
   // Invalidar cache manualmente
   const refreshSession = useCallback(async () => {
@@ -191,7 +230,7 @@ export function useUserSession() {
     user: sessionQuery.data?.user || null,
     role: sessionQuery.data?.role || null,
     modules: sessionQuery.data?.modules || [],
-    allowedSpaces: sessionQuery.data?.spaces || [],
+    allowedSpaces,
     isAdmin: sessionQuery.data?.isAdmin || false,
     
     // Estados de loading
@@ -199,7 +238,7 @@ export function useUserSession() {
     isAuthenticated: !!sessionQuery.data?.user,
     
     // Espaços disponíveis
-    availableSpaces: spacesQuery.data || [],
+    availableSpaces,
     spacesLoading: spacesQuery.isLoading,
     
     // Funções auxiliares
