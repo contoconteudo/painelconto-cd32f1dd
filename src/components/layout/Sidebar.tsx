@@ -9,9 +9,11 @@ import {
   Building2,
   ChevronDown,
   Check,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole, type AppRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
 import { useCompany, Company } from "@/contexts/CompanyContext";
 import {
@@ -21,12 +23,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Estratégia", href: "/estrategia", icon: Target },
-  { name: "CRM", href: "/crm", icon: Users },
-  { name: "Clientes", href: "/clientes", icon: Briefcase },
-  { name: "Configurações", href: "/configuracoes", icon: Settings },
+type ModulePermission = 'dashboard' | 'crm' | 'clients' | 'objectives' | 'strategy' | 'settings' | 'admin';
+
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  module: ModulePermission;
+}
+
+const navigation: NavItem[] = [
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, module: "dashboard" },
+  { name: "Estratégia", href: "/estrategia", icon: Target, module: "strategy" },
+  { name: "CRM", href: "/crm", icon: Users, module: "crm" },
+  { name: "Clientes", href: "/clientes", icon: Briefcase, module: "clients" },
+  { name: "Configurações", href: "/configuracoes", icon: Settings, module: "settings" },
+  { name: "Admin", href: "/admin", icon: Shield, module: "admin" },
 ];
 
 const companyInfo: Record<Company, { name: string; gradient: string }> = {
@@ -45,6 +57,7 @@ export function Sidebar() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { currentCompany, setCurrentCompany, allowedCompanies, isAdmin } = useCompany();
+  const { role, canAccessModule, isLoading: roleLoading } = useUserRole();
 
   const handleSignOut = async () => {
     try {
@@ -138,22 +151,24 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navigation.map((item) => {
-            const isActive = location.pathname === item.href;
-            return (
-              <Link
-                key={item.name}
-                to={item.href}
-                className={cn(
-                  "sidebar-item",
-                  isActive && "sidebar-item-active"
-                )}
-              >
-                <item.icon className="h-5 w-5 flex-shrink-0" />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
+          {navigation
+            .filter((item) => canAccessModule(item.module))
+            .map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={cn(
+                    "sidebar-item",
+                    isActive && "sidebar-item-active"
+                  )}
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
         </nav>
 
         {/* User section */}
@@ -166,6 +181,11 @@ export function Sidebar() {
               <p className="text-sm font-medium text-sidebar-foreground truncate">
                 {user?.email || "Usuário"}
               </p>
+              {role && (
+                <p className="text-xs text-sidebar-foreground/50 capitalize">
+                  {role}
+                </p>
+              )}
             </div>
           </div>
           <button
