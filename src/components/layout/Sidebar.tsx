@@ -40,17 +40,14 @@ const navigation: NavItem[] = [
   { name: "Admin", href: "/admin", icon: Shield, module: "admin" },
 ];
 
-// Helper para obter gradiente baseado na cor do espaço
-const getGradientFromColor = (color: string): string => {
-  if (color.includes('primary')) return "bg-gradient-to-br from-primary to-primary/80";
-  if (color.includes('blue')) return "bg-gradient-to-br from-blue-600 to-blue-500";
-  if (color.includes('green')) return "bg-gradient-to-br from-green-600 to-green-500";
-  if (color.includes('purple')) return "bg-gradient-to-br from-purple-600 to-purple-500";
-  if (color.includes('orange')) return "bg-gradient-to-br from-orange-600 to-orange-500";
-  if (color.includes('cyan')) return "bg-gradient-to-br from-cyan-600 to-cyan-500";
-  if (color.includes('rose')) return "bg-gradient-to-br from-rose-600 to-rose-500";
-  if (color.includes('amber')) return "bg-gradient-to-br from-amber-600 to-amber-500";
-  return "bg-gradient-to-br from-primary to-primary/80";
+// Helper para obter estilo de cor baseado na cor hex do espaço
+const getColorStyle = (color: string): React.CSSProperties => {
+  // Se a cor é uma classe Tailwind ou inválida, usar fallback
+  if (!color || !color.startsWith('#')) {
+    return { background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))' };
+  }
+  // Criar gradiente a partir da cor hex
+  return { background: `linear-gradient(135deg, ${color}, ${color}dd)` };
 };
 
 export function Sidebar() {
@@ -76,9 +73,10 @@ export function Sidebar() {
 
   // Obter informações do espaço atual
   const currentSpace = availableSpaces.find(s => s.id === currentCompany);
-  const currentInfo = currentSpace 
-    ? { name: currentSpace.label, gradient: getGradientFromColor(currentSpace.color) }
-    : { name: "Espaço", gradient: "bg-gradient-to-br from-primary to-primary/80" };
+  const currentColorStyle = currentSpace 
+    ? getColorStyle(currentSpace.color)
+    : { background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.8))' };
+  const currentSpaceName = currentSpace?.label || "Espaço";
 
   const handleCompanyChange = (company: Company) => {
     setCurrentCompany(company);
@@ -109,15 +107,15 @@ export function Sidebar() {
               )}
               disabled={!canSwitch}
             >
-              <div className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-lg",
-                currentInfo.gradient
-              )}>
+              <div 
+                className="flex h-9 w-9 items-center justify-center rounded-lg"
+                style={currentColorStyle}
+              >
                 <Building2 className="h-5 w-5 text-white" />
               </div>
               <div className="flex flex-col items-start flex-1 min-w-0">
                 <span className="text-lg font-bold text-sidebar-foreground truncate">
-                  {currentInfo.name}
+                  {currentSpaceName}
                 </span>
                 <span className="text-xs text-sidebar-foreground/50">
                   Project Management
@@ -139,10 +137,10 @@ export function Sidebar() {
                     onClick={() => handleCompanyChange(space.id)}
                     className="cursor-pointer flex items-center gap-3 py-3"
                   >
-                    <div className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-lg",
-                      getGradientFromColor(space.color)
-                    )}>
+                    <div 
+                      className="flex h-8 w-8 items-center justify-center rounded-lg"
+                      style={getColorStyle(space.color)}
+                    >
                       <Building2 className="h-4 w-4 text-white" />
                     </div>
                     <div className="flex flex-col flex-1">
