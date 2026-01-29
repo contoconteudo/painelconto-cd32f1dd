@@ -1,11 +1,10 @@
 /**
- * Hook simplificado para autenticação.
- * 
- * MODO DEMO: Usa useUserSession que já retorna usuário simulado.
+ * Hook para autenticação de usuários.
+ * Integra com Supabase Auth para login, cadastro e logout.
  */
 
 import { useCallback } from "react";
-// import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
+import { supabase } from "@/integrations/supabase/client";
 import { useUserSession } from "./useUserSession";
 import { toast } from "sonner";
 import { DEMO_MODE } from "@/data/mockData";
@@ -26,15 +25,12 @@ export function useAuth() {
   } : null;
 
   const signIn = useCallback(async (email: string, password: string): Promise<void> => {
-    // MODO DEMO: simula login bem-sucedido
     if (DEMO_MODE) {
       toast.success("Login simulado! (DEMO)");
       window.location.replace("/");
       return;
     }
 
-    // Código real comentado para DEMO
-    /*
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -46,18 +42,14 @@ export function useAuth() {
       }
       throw new Error(error.message);
     }
-    */
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, fullName?: string): Promise<void> => {
-    // MODO DEMO: simula cadastro
     if (DEMO_MODE) {
       toast.success("Cadastro simulado! (DEMO)");
       return;
     }
 
-    // Código real comentado para DEMO
-    /*
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -75,30 +67,25 @@ export function useAuth() {
       }
       throw new Error(error.message);
     }
-    */
   }, []);
 
   const signOut = useCallback(async () => {
-    // MODO DEMO: simula logout
     if (DEMO_MODE) {
       toast.success("Logout simulado! (DEMO)");
       window.location.replace("/login");
       return;
     }
 
-    // Código real comentado para DEMO
-    // await supabase.auth.signOut();
+    await supabase.auth.signOut();
+    window.location.replace("/login");
   }, []);
 
   const resetPassword = useCallback(async (email: string): Promise<void> => {
-    // MODO DEMO: simula reset
     if (DEMO_MODE) {
       toast.success("Email de recuperação enviado! (DEMO)");
       return;
     }
 
-    // Código real comentado para DEMO
-    /*
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
@@ -106,7 +93,6 @@ export function useAuth() {
     if (error) {
       throw new Error(error.message);
     }
-    */
   }, []);
 
   return {

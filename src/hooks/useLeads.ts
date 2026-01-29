@@ -1,5 +1,11 @@
-import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from "react";
+/**
+ * Hook para gerenciar leads do CRM.
+ * Integra com Supabase para CRUD de leads.
+ */
+
+import { useState, useCallback, useMemo, useSyncExternalStore } from "react";
 import { Lead, LeadStatus } from "@/types";
+import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
@@ -8,9 +14,10 @@ import { DEMO_MODE, demoStore } from "@/data/mockData";
 export function useLeads() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Usar useSyncExternalStore para reagir a mudanças no demoStore
-  const allLeads = useSyncExternalStore(
+  // DEMO: usar useSyncExternalStore para reagir a mudanças no demoStore
+  const demoLeads = useSyncExternalStore(
     (callback) => demoStore.subscribe(callback),
     () => demoStore.leads,
     () => demoStore.leads
@@ -18,13 +25,14 @@ export function useLeads() {
 
   // Filtrar leads pelo espaço atual
   const leads = useMemo(() => {
-    if (!DEMO_MODE) return [];
-    return currentCompany 
-      ? allLeads.filter(l => l.space_id === currentCompany)
-      : allLeads;
-  }, [allLeads, currentCompany]);
-
-  const [isLoading, setIsLoading] = useState(false);
+    if (DEMO_MODE) {
+      return currentCompany 
+        ? demoLeads.filter(l => l.space_id === currentCompany)
+        : demoLeads;
+    }
+    // PRODUÇÃO: dados seriam carregados via query
+    return [];
+  }, [demoLeads, currentCompany]);
 
   const addLead = useCallback(async (
     data: Omit<Lead, "id" | "created_at" | "updated_at">
@@ -33,17 +41,37 @@ export function useLeads() {
       const newLead: Lead = {
         ...data,
         id: `lead-${Date.now()}`,
-        space_id: data.space_id || currentCompany || "conto",
+        space_id: data.space_id || currentCompany || "",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
       demoStore.addLead(newLead);
-      toast.success("Lead criado com sucesso! (DEMO)");
+      toast.success("Lead criado com sucesso!");
       return newLead;
     }
-    toast.error("Modo produção desativado.");
-    return null;
-  }, [currentCompany]);
+
+    setIsLoading(true);
+    try {
+      const { data: newLead, error } = await supabase
+        .from("leads")
+        .insert({
+          ...data,
+          space_id: data.space_id || currentCompany,
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      toast.success("Lead criado com sucesso!");
+      return newLead as Lead;
+    } catch (error: any) {
+      toast.error("Erro ao criar lead: " + error.message);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentCompany, user?.id]);
 
   const updateLead = useCallback(async (
     id: string, 
@@ -51,16 +79,46 @@ export function useLeads() {
   ) => {
     if (DEMO_MODE) {
       demoStore.updateLead(id, { ...data, updated_at: new Date().toISOString() });
-      toast.success("Lead atualizado! (DEMO)");
+      toast.success("Lead atualizado!");
       return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from("leads")
+        .update({ ...data, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (error) throw error;
+      toast.success("Lead atualizado!");
+    } catch (error: any) {
+      toast.error("Erro ao atualizar lead: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const deleteLead = useCallback(async (id: string) => {
     if (DEMO_MODE) {
       demoStore.deleteLead(id);
-      toast.success("Lead excluído! (DEMO)");
+      toast.success("Lead excluído!");
       return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from("leads")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      toast.success("Lead excluído!");
+    } catch (error: any) {
+      toast.error("Erro ao excluir lead: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -68,6 +126,17 @@ export function useLeads() {
     if (DEMO_MODE) {
       demoStore.updateLead(leadId, { status: newStatus, updated_at: new Date().toISOString() });
       return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("leads")
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq("id", leadId);
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast.error("Erro ao mover lead: " + error.message);
     }
   }, []);
 
