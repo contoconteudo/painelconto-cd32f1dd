@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Objective } from "@/types";
 import { ObjectiveForm } from "./ObjectiveForm";
+import { MonthlyProgressGrid } from "./MonthlyProgressGrid";
 import { Pencil, Trash2, Target, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OBJECTIVE_STATUSES, formatValue } from "@/lib/constants";
@@ -22,7 +23,8 @@ interface ObjectiveDetailProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   objective: Objective | null;
-  onAddProgress: (objectiveId: string, value: number, notes?: string) => void;
+  onAddProgress: (objectiveId: string, value: number, notes?: string, loggedAt?: string) => void;
+  onDeleteProgress: (objectiveId: string, logId: string) => void;
   onUpdate: (id: string, data: Partial<Objective>) => void;
   onDelete: (id: string) => void;
 }
@@ -32,6 +34,7 @@ export function ObjectiveDetail({
   onOpenChange, 
   objective, 
   onAddProgress,
+  onDeleteProgress,
   onUpdate,
   onDelete 
 }: ObjectiveDetailProps) {
@@ -111,29 +114,12 @@ export function ObjectiveDetail({
               </div>
             </div>
 
-            {/* Progress Logs */}
-            {objective.progressLogs && objective.progressLogs.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold mb-3">Histórico de Progresso</h4>
-                <div className="space-y-2">
-                  {objective.progressLogs.slice(0, 5).map((log) => (
-                    <div key={log.id} className="p-3 rounded-lg bg-muted/30 border">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">
-                          {formatValue(log.value, objective.unit)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(log.logged_at).toLocaleDateString('pt-BR')}
-                        </span>
-                      </div>
-                      {log.notes && (
-                        <p className="text-xs text-muted-foreground mt-1">{log.notes}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Monthly Progress Grid */}
+            <MonthlyProgressGrid
+              objective={objective}
+              onAddProgress={(value, notes, loggedAt) => onAddProgress(objective.id, value, notes, loggedAt)}
+              onDeleteProgress={(logId) => onDeleteProgress(objective.id, logId)}
+            />
 
             {/* Actions */}
             <div className="flex gap-2">

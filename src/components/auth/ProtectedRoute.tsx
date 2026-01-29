@@ -37,6 +37,31 @@ export function ProtectedRoute({ children, requiredModule }: ProtectedRouteProps
   }
 
   // Usuário autenticado mas sem role (novo usuário ou banco resetado)
+  // Importante: se as permissões falharam/deram timeout, não mostrar "Conta Pendente" indevidamente.
+  if (session.isAuthenticated && (session.permissionsState === "timeout" || session.permissionsState === "error")) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
+        <div className="text-center max-w-md">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-warning/10 mb-6">
+            <AlertCircle className="h-8 w-8 text-warning" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Falha ao carregar permissões</h1>
+          <p className="text-muted-foreground mb-6">
+            Não foi possível validar suas permissões agora. Isso pode ocorrer por instabilidade de rede ou regras de acesso.
+          </p>
+          <div className="space-y-3">
+            <Button onClick={() => session.refreshSession()} variant="outline" className="w-full">
+              Tentar Novamente
+            </Button>
+            <Button onClick={handleLogout} variant="ghost" className="w-full">
+              Sair e Usar Outra Conta
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!session.role && !session.isAdmin) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">

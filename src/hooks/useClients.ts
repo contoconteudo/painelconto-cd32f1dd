@@ -43,7 +43,9 @@ export function useClients() {
       // Buscar clientes
       const { data: clientsData, error: clientsError } = await supabase
         .from("clients")
-        .select("*")
+        .select(
+          "id, space_id, name, company, email, phone, segment, status, monthly_value, contract_start, package, notes, created_by, created_at, updated_at"
+        )
         .eq("space_id", currentCompany)
         .order("created_at", { ascending: false });
 
@@ -60,7 +62,8 @@ export function useClients() {
       if (clientIds.length > 0) {
         const { data: npsData } = await supabase
           .from("nps_records")
-          .select("*")
+          .select("id, client_id, space_id, score, feedback, recorded_at, created_by")
+          .eq("space_id", currentCompany)
           .in("client_id", clientIds);
 
         // Agrupar NPS por cliente
@@ -265,9 +268,11 @@ export function useClients() {
       }));
       
       toast.success("NPS registrado com sucesso!");
+      return mappedRecord;
     } catch (error) {
       console.error("Erro inesperado ao criar NPS:", error);
       toast.error("Erro inesperado.");
+      return null;
     }
   }, [currentCompany, user?.id]);
 

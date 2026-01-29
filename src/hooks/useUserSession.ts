@@ -22,6 +22,7 @@ export interface UserSession {
   modules: ModulePermission[];
   spaces: string[];
   isAdmin: boolean;
+  permissionsState: "ok" | "timeout" | "error";
 }
 
 type NormalizedSpace = {
@@ -47,7 +48,7 @@ const QUERY_KEY = ["user-session"];
 const SPACES_KEY = ["available-spaces"];
 
 // Timeout para evitar espera infinita (5 segundos)
-const FETCH_TIMEOUT = 5000;
+const FETCH_TIMEOUT = 2000;
 
 // Carregar dados de permissão do usuário - COM FAIL-SAFE
 async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user">> {
@@ -56,6 +57,7 @@ async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user
     modules: [],
     spaces: [],
     isAdmin: false,
+    permissionsState: "error",
   };
 
   try {
@@ -74,7 +76,7 @@ async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user
     // Buscar permissões
     const permPromise = supabase
       .from("user_permissions")
-      .select("*")
+      .select("modules, spaces")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -87,7 +89,7 @@ async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user
     // Se timeout, retorna default
     if (!results) {
       console.warn("Timeout ao buscar permissões - usando valores padrão");
-      return defaultPermissions;
+      return { ...defaultPermissions, permissionsState: "timeout" };
     }
 
     const [roleResult, permResult] = results;
@@ -104,8 +106,8 @@ async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user
     const isAdmin = role === "admin";
 
     // Schema padronizado: usar apenas 'modules' e 'spaces'
-    const rawModules = (permResult.data as any)?.modules ?? [];
-    const rawSpaces = (permResult.data as any)?.spaces ?? [];
+    const rawModules = (permResult.data as { modules?: unknown } | null)?.modules ?? [];
+    const rawSpaces = (permResult.data as { spaces?: unknown } | null)?.spaces ?? [];
     
     // Se admin, tem acesso total
     if (isAdmin) {
@@ -114,6 +116,7 @@ async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user
         modules: ALL_MODULES,
         spaces: [],
         isAdmin: true,
+        permissionsState: "ok",
       };
     }
 
@@ -122,6 +125,7 @@ async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user
       modules: (rawModules || []) as ModulePermission[],
       spaces: (rawSpaces || []) as string[],
       isAdmin: false,
+      permissionsState: "ok",
     };
   } catch (error) {
     console.error("Erro crítico ao buscar permissões:", error);
@@ -193,6 +197,7 @@ export function useUserSession() {
             modules: [],
             spaces: [],
             isAdmin: false,
+            permissionsState: "ok",
           };
         }
 
@@ -216,6 +221,7 @@ export function useUserSession() {
           modules: [],
           spaces: [],
           isAdmin: false,
+          permissionsState: "error",
         };
       }
     },
@@ -313,6 +319,7 @@ export function useUserSession() {
     modules: sessionQuery.data?.modules || [],
     allowedSpaces,
     isAdmin: sessionQuery.data?.isAdmin || false,
+    permissionsState: sessionQuery.data?.permissionsState || "ok",
     
     // Estados de loading - NUNCA ficam true indefinidamente
     isLoading,

@@ -24,7 +24,9 @@ export function useLeads() {
     try {
       const { data, error } = await supabase
         .from("leads")
-        .select("*")
+        .select(
+          "id, space_id, name, company, email, phone, status, source, value, temperature, notes, created_by, created_at, updated_at"
+        )
         .eq("space_id", currentCompany)
         .order("created_at", { ascending: false });
 

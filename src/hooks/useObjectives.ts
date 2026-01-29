@@ -45,7 +45,9 @@ export function useObjectives() {
       // Buscar objetivos
       const { data: objectivesData, error: objectivesError } = await supabase
         .from("objectives")
-        .select("*")
+        .select(
+          "id, space_id, title, description, category, target_value, current_value, unit, start_date, end_date, status, is_commercial, value_type, created_by, created_at, updated_at"
+        )
         .eq("space_id", currentCompany)
         .order("created_at", { ascending: false });
 
@@ -62,7 +64,7 @@ export function useObjectives() {
       if (objectiveIds.length > 0) {
         const { data: logsData } = await supabase
           .from("progress_logs")
-          .select("*")
+          .select("id, objective_id, value, notes, logged_at, created_by")
           .in("objective_id", objectiveIds);
 
         (logsData || []).forEach(log => {
@@ -234,7 +236,8 @@ export function useObjectives() {
   const addProgressLog = useCallback(async (
     objectiveId: string, 
     value: number, 
-    notes?: string
+    notes?: string,
+    loggedAt?: string
   ): Promise<ProgressLog | null> => {
     if (!user?.id) {
       toast.error("Você precisa estar logado.");
@@ -248,6 +251,7 @@ export function useObjectives() {
           objective_id: objectiveId,
           value,
           notes: notes || null,
+          ...(loggedAt ? { logged_at: loggedAt } : {}),
           created_by: user.id,
         })
         .select()
@@ -268,27 +272,37 @@ export function useObjectives() {
         created_by: newLog.created_by,
       };
 
-      // Atualizar estado local
-      setObjectives(prev => prev.map(obj => {
-        if (obj.id !== objectiveId) return obj;
-        
-        const newLogs = [...(obj.progressLogs || []), mappedLog];
-        const newCurrentValue = newLogs.reduce((sum, l) => sum + l.value, 0);
-        const newStatus = calculateStatus(newCurrentValue, obj.target_value || 0, obj.end_date);
-        
-        // Atualizar no banco também
-        supabase
-          .from("objectives")
-          .update({ current_value: newCurrentValue, status: newStatus })
-          .eq("id", objectiveId);
-        
-        return {
-          ...obj,
-          progressLogs: newLogs,
-          current_value: newCurrentValue,
-          status: newStatus,
-        };
-      }));
+      // Atualizar estado local + calcular novos valores (sem side-effects dentro do setState)
+      let computedCurrentValue = 0;
+      let computedStatus: ObjectiveStatus = "em_andamento";
+
+      setObjectives((prev) =>
+        prev.map((obj) => {
+          if (obj.id !== objectiveId) return obj;
+
+          const newLogs = [...(obj.progressLogs || []), mappedLog];
+          computedCurrentValue = newLogs.reduce((sum, l) => sum + l.value, 0);
+          computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
+
+          return {
+            ...obj,
+            progressLogs: newLogs,
+            current_value: computedCurrentValue,
+            status: computedStatus,
+          };
+        })
+      );
+
+      // Persistir valores derivados no banco (await + tratamento de erro)
+      const { error: updateError } = await supabase
+        .from("objectives")
+        .update({ current_value: computedCurrentValue, status: computedStatus })
+        .eq("id", objectiveId);
+
+      if (updateError) {
+        console.error("Erro ao atualizar objetivo após progresso:", updateError);
+        toast.error("Progresso salvo, mas falhou ao atualizar o objetivo. Recarregue a página.");
+      }
 
       toast.success("Progresso registrado!");
       return mappedLog;
@@ -311,25 +325,35 @@ export function useObjectives() {
       return;
     }
 
-    setObjectives(prev => prev.map(obj => {
-      if (obj.id !== objectiveId) return obj;
-      
-      const filteredLogs = (obj.progressLogs || []).filter(l => l.id !== logId);
-      const newCurrentValue = filteredLogs.reduce((sum, l) => sum + l.value, 0);
-      const newStatus = calculateStatus(newCurrentValue, obj.target_value || 0, obj.end_date);
-      
-      supabase
-        .from("objectives")
-        .update({ current_value: newCurrentValue, status: newStatus })
-        .eq("id", objectiveId);
-      
-      return {
-        ...obj,
-        progressLogs: filteredLogs,
-        current_value: newCurrentValue,
-        status: newStatus,
-      };
-    }));
+    let computedCurrentValue = 0;
+    let computedStatus: ObjectiveStatus = "em_andamento";
+
+    setObjectives((prev) =>
+      prev.map((obj) => {
+        if (obj.id !== objectiveId) return obj;
+
+        const filteredLogs = (obj.progressLogs || []).filter((l) => l.id !== logId);
+        computedCurrentValue = filteredLogs.reduce((sum, l) => sum + l.value, 0);
+        computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
+
+        return {
+          ...obj,
+          progressLogs: filteredLogs,
+          current_value: computedCurrentValue,
+          status: computedStatus,
+        };
+      })
+    );
+
+    const { error: updateError } = await supabase
+      .from("objectives")
+      .update({ current_value: computedCurrentValue, status: computedStatus })
+      .eq("id", objectiveId);
+
+    if (updateError) {
+      console.error("Erro ao atualizar objetivo após excluir progresso:", updateError);
+      toast.error("Registro removido, mas falhou ao atualizar o objetivo. Recarregue a página.");
+    }
     
     toast.success("Registro removido!");
   }, []);
