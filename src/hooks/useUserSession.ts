@@ -29,6 +29,7 @@ type NormalizedSpace = {
   label: string;
   description: string;
   color: string;
+  icon: string;
   created_at?: string;
 };
 
@@ -162,6 +163,7 @@ async function fetchAvailableSpaces(): Promise<NormalizedSpace[]> {
         label: String(row.label ?? row.name ?? row.title ?? row.id),
         description: String(row.description ?? ""),
         color: String(row.color ?? "bg-primary"),
+        icon: String(row.icon ?? "LayoutDashboard"),
         created_at: row.created_at ? String(row.created_at) : undefined,
       }));
 

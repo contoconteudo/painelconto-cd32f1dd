@@ -93,6 +93,8 @@ export function useObjectives() {
         start_date: o.start_date,
         end_date: o.end_date,
         status: o.status as ObjectiveStatus,
+        is_commercial: o.is_commercial || false,
+        value_type: o.value_type || null,
         created_by: o.created_by,
         created_at: o.created_at,
         updated_at: o.updated_at,
@@ -113,7 +115,7 @@ export function useObjectives() {
   }, [loadObjectives]);
 
   const addObjective = useCallback(async (
-    data: Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs" | "current_value" | "status">
+    data: Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs" | "current_value" | "status"> & { is_commercial?: boolean; value_type?: string }
   ): Promise<Objective | null> => {
     if (!user?.id) {
       toast.error("Você precisa estar logado para criar um objetivo.");
@@ -139,6 +141,8 @@ export function useObjectives() {
           start_date: data.start_date || null,
           end_date: data.end_date || null,
           status: 'em_andamento',
+          is_commercial: data.is_commercial || false,
+          value_type: data.value_type || null,
           created_by: user.id,
         })
         .select()
@@ -181,6 +185,8 @@ export function useObjectives() {
     if (data.start_date !== undefined) updateData.start_date = data.start_date;
     if (data.end_date !== undefined) updateData.end_date = data.end_date;
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.is_commercial !== undefined) updateData.is_commercial = data.is_commercial;
+    if (data.value_type !== undefined) updateData.value_type = data.value_type;
 
     const { error } = await supabase
       .from("objectives")
