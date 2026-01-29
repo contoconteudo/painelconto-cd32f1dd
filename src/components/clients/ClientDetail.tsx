@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { Client, NPSRecord } from "@/types";
 import { Building2, Mail, Phone, Calendar, TrendingUp, Star, Trash2, Edit } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,7 +18,40 @@ interface ClientDetailProps {
   client: Client | null;
   onEdit: () => void;
   onDelete: () => void;
+  onAddNPSRecord: (record: { score: number; feedback?: string }) => Promise<void> | void;
   onDeleteNPSRecord: (recordId: string) => void;
+}
+
+function NPSInputButtons({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((score) => (
+        <button
+          key={score}
+          type="button"
+          onClick={() => onChange(score)}
+          className={cn(
+            "h-7 w-7 rounded text-xs font-medium transition-colors",
+            value === score
+              ? score >= 9
+                ? "bg-success text-success-foreground"
+                : score >= 7
+                  ? "bg-warning text-warning-foreground"
+                  : "bg-destructive text-destructive-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          )}
+        >
+          {score}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function NPSScoreBadge({ score }: { score: number }) {
@@ -39,8 +74,11 @@ function calculateLTV(monthlyValue: number | null, contractStart: string | null)
   return monthlyValue * months;
 }
 
-export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onDeleteNPSRecord }: ClientDetailProps) {
+export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onAddNPSRecord, onDeleteNPSRecord }: ClientDetailProps) {
   const { canDelete } = usePermissions();
+  const [newScore, setNewScore] = useState<number | null>(null);
+  const [newFeedback, setNewFeedback] = useState("");
+  const [isSavingNps, setIsSavingNps] = useState(false);
 
   if (!client) return null;
 
@@ -146,6 +184,45 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onD
                     ) : (
                       <p className="text-sm text-muted-foreground">-</p>
                     )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick add */}
+              <div className="rounded-lg border bg-muted/20 p-3 mb-4">
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-2">Registrar novo NPS</p>
+                    <NPSInputButtons value={newScore} onChange={setNewScore} />
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      placeholder="Feedback (opcional)"
+                      value={newFeedback}
+                      onChange={(e) => setNewFeedback(e.target.value)}
+                      className="text-sm"
+                      maxLength={1000}
+                    />
+                    <Button
+                      className="gradient-primary text-primary-foreground sm:w-28"
+                      disabled={newScore === null || isSavingNps}
+                      onClick={async () => {
+                        if (newScore === null) return;
+                        setIsSavingNps(true);
+                        try {
+                          await onAddNPSRecord({
+                            score: newScore,
+                            feedback: newFeedback.trim() ? newFeedback.trim() : undefined,
+                          });
+                          setNewScore(null);
+                          setNewFeedback("");
+                        } finally {
+                          setIsSavingNps(false);
+                        }
+                      }}
+                    >
+                      Salvar
+                    </Button>
                   </div>
                 </div>
               </div>

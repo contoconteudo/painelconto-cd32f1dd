@@ -217,7 +217,8 @@ export default function Estrategia() {
         open={showDetail}
         onOpenChange={setShowDetail}
         objective={selectedObjective}
-        onAddProgress={(id, value, notes) => addProgressLog(id, value, notes)}
+        onAddProgress={(id, value, notes, loggedAt) => addProgressLog(id, value, notes, loggedAt)}
+        onDeleteProgress={(objectiveId, logId) => deleteProgressLog(objectiveId, logId)}
         onUpdate={updateObjective}
         onDelete={deleteObjective}
       />

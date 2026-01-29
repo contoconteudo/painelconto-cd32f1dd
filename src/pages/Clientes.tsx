@@ -136,6 +136,21 @@ export default function Clientes() {
     }
   };
 
+  const handleAddNPSFromDetail = async (record: { score: number; feedback?: string }) => {
+    if (!selectedClient) return;
+    const created = await addNPSRecord(selectedClient.id, record);
+    if (!created) return;
+
+    setSelectedClient((prev) => {
+      if (!prev) return prev;
+      if (prev.id !== selectedClient.id) return prev;
+      return {
+        ...prev,
+        npsHistory: [...(prev.npsHistory || []), created],
+      };
+    });
+  };
+
   const openClientDetail = (client: Client) => {
     setSelectedClient(client);
     setDetailOpen(true);
@@ -397,6 +412,7 @@ export default function Clientes() {
         client={selectedClient}
         onEdit={openEditForm}
         onDelete={openDeleteDialog}
+        onAddNPSRecord={handleAddNPSFromDetail}
         onDeleteNPSRecord={handleDeleteNPSRecord}
       />
 
