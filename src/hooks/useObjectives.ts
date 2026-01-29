@@ -1,15 +1,18 @@
 /**
  * Hook para gerenciar objetivos estratégicos.
- * Integra com Supabase para CRUD de objetivos e logs de progresso.
+ * Integra diretamente com Supabase.
  */
 
-import { useState, useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Objective, ProgressLog, ObjectiveStatus } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
-import { DEMO_MODE, demoStore } from "@/data/mockData";
+
+const QUERY_KEY = "objectives";
+const LOGS_QUERY_KEY = "progress_logs";
 
 function calculateStatus(currentValue: number, targetValue: number, endDate: string | null): ObjectiveStatus {
   if (!endDate || !targetValue) return "em_andamento";
@@ -30,216 +33,146 @@ function calculateStatus(currentValue: number, targetValue: number, endDate: str
   return "atrasado";
 }
 
-// Calcula valor automático baseado na fonte de dados
-function getAutoValue(valueType: string | null, spaceId: string): number {
-  if (!valueType || valueType === "none") return 0;
-  
-  if (DEMO_MODE) {
-    const leads = demoStore.leads.filter(l => l.space_id === spaceId);
-    const clients = demoStore.clients.filter(c => c.space_id === spaceId);
-
-    switch (valueType) {
-      case "crm_pipeline": {
-        const activeStatuses = ["novo", "contato", "reuniao_agendada", "reuniao_feita", "proposta", "negociacao"];
-        return leads
-          .filter(l => activeStatuses.includes(l.status))
-          .reduce((sum, l) => sum + (l.value || 0), 0);
-      }
-      case "crm_won": {
-        return leads
-          .filter(l => l.status === "ganho")
-          .reduce((sum, l) => sum + (l.value || 0), 0);
-      }
-      case "clients_mrr": {
-        return clients
-          .filter(c => c.status === "ativo")
-          .reduce((sum, c) => sum + (c.monthly_value || 0), 0);
-      }
-      case "clients_count": {
-        return clients.filter(c => c.status === "ativo").length;
-      }
-      default:
-        return 0;
-    }
-  }
-  return 0;
-}
-
 export function useObjectives() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  // DEMO: usar useSyncExternalStore para reagir a mudanças no demoStore
-  const demoObjectives = useSyncExternalStore(
-    (callback) => demoStore.subscribe(callback),
-    () => demoStore.objectives,
-    () => demoStore.objectives
-  );
-
-  // Filtrar objetivos pelo espaço atual e calcular valores automáticos
-  const objectives = useMemo(() => {
-    if (DEMO_MODE) {
-      const filtered = currentCompany 
-        ? demoObjectives.filter(o => o.space_id === currentCompany)
-        : demoObjectives;
+  // Query para buscar objetivos do espaço atual
+  const { data: objectives = [], isLoading } = useQuery({
+    queryKey: [QUERY_KEY, currentCompany],
+    queryFn: async () => {
+      if (!currentCompany) return [];
       
-      // Calcular valores automáticos para metas comerciais
-      return filtered.map(obj => {
-        if (obj.is_commercial && obj.value_type && obj.value_type !== "none") {
-          const autoValue = getAutoValue(obj.value_type, obj.space_id);
-          const newStatus = calculateStatus(autoValue, obj.target_value || 0, obj.end_date);
-          return { ...obj, current_value: autoValue, status: newStatus };
-        }
-        return obj;
-      });
-    }
-    return [];
-  }, [demoObjectives, currentCompany]);
+      const { data, error } = await supabase
+        .from("objectives")
+        .select("*")
+        .eq("space_id", currentCompany)
+        .order("created_at", { ascending: false });
 
-  const addObjective = useCallback(async (
-    data: Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs" | "current_value" | "status"> & { is_commercial?: boolean; value_type?: string }
-  ): Promise<Objective | null> => {
-    const spaceId = data.space_id || currentCompany || "";
-    const initialValue = data.is_commercial && data.value_type 
-      ? getAutoValue(data.value_type, spaceId)
-      : 0;
+      if (error) throw error;
+      return data as Objective[];
+    },
+    enabled: !!currentCompany,
+  });
 
-    if (DEMO_MODE) {
-      const newObjective: Objective = {
-        ...data,
-        id: `obj-${Date.now()}`,
-        space_id: spaceId,
-        current_value: initialValue,
-        status: calculateStatus(initialValue, data.target_value || 0, data.end_date),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        progressLogs: [],
-      };
-      demoStore.addObjective(newObjective);
-      toast.success("Objetivo criado com sucesso!");
-      return newObjective;
-    }
+  // Query para buscar progress logs
+  const { data: progressLogs = [] } = useQuery({
+    queryKey: [LOGS_QUERY_KEY, currentCompany],
+    queryFn: async () => {
+      if (!currentCompany || objectives.length === 0) return [];
+      
+      const objectiveIds = objectives.map(o => o.id);
+      const { data, error } = await supabase
+        .from("progress_logs")
+        .select("*")
+        .in("objective_id", objectiveIds)
+        .order("logged_at", { ascending: false });
 
-    setIsLoading(true);
-    try {
+      if (error) throw error;
+      return data as ProgressLog[];
+    },
+    enabled: !!currentCompany && objectives.length > 0,
+  });
+
+  // Combinar objetivos com logs de progresso
+  const objectivesWithLogs = useMemo(() => {
+    return objectives.map(obj => ({
+      ...obj,
+      progressLogs: progressLogs.filter(l => l.objective_id === obj.id),
+    }));
+  }, [objectives, progressLogs]);
+
+  // Mutation para adicionar objetivo
+  const addMutation = useMutation({
+    mutationFn: async (data: Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs" | "current_value" | "status">) => {
       const { data: newObj, error } = await supabase
         .from("objectives")
         .insert({
           ...data,
-          space_id: spaceId,
-          current_value: initialValue,
-          status: calculateStatus(initialValue, data.target_value || 0, data.end_date),
+          space_id: data.space_id || currentCompany,
+          current_value: 0,
+          status: calculateStatus(0, data.target_value || 0, data.end_date),
           created_by: user?.id,
         })
         .select()
         .single();
 
       if (error) throw error;
+      return newObj as Objective;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
       toast.success("Objetivo criado com sucesso!");
-      return { ...newObj, progressLogs: [] } as Objective;
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao criar objetivo: " + error.message);
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentCompany, user?.id]);
+    },
+  });
 
-  const updateObjective = useCallback(async (
-    id: string, 
-    data: Partial<Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs">>
-  ) => {
-    if (DEMO_MODE) {
-      const obj = demoObjectives.find(o => o.id === id);
-      if (obj) {
-        const updated = { ...obj, ...data, updated_at: new Date().toISOString() };
-        if (data.current_value !== undefined || data.target_value !== undefined || data.end_date !== undefined) {
-          updated.status = calculateStatus(
-            updated.current_value, 
-            updated.target_value || 0, 
-            updated.end_date
-          );
-        }
-        demoStore.updateObjective(id, updated);
+  // Mutation para atualizar objetivo
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Objective> }) => {
+      const obj = objectives.find(o => o.id === id);
+      const updated = { ...obj, ...data };
+      
+      // Recalcular status se valores relevantes mudaram
+      let newStatus = data.status;
+      if (data.current_value !== undefined || data.target_value !== undefined || data.end_date !== undefined) {
+        newStatus = calculateStatus(
+          updated.current_value ?? 0, 
+          updated.target_value ?? 0, 
+          updated.end_date ?? null
+        );
       }
-      toast.success("Objetivo atualizado!");
-      return;
-    }
 
-    setIsLoading(true);
-    try {
       const { error } = await supabase
         .from("objectives")
-        .update({ ...data, updated_at: new Date().toISOString() })
+        .update({ 
+          ...data, 
+          status: newStatus,
+          updated_at: new Date().toISOString() 
+        })
         .eq("id", id);
 
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
       toast.success("Objetivo atualizado!");
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao atualizar objetivo: " + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [demoObjectives]);
+    },
+  });
 
-  const deleteObjective = useCallback(async (id: string) => {
-    if (DEMO_MODE) {
-      demoStore.deleteObjective(id);
-      toast.success("Objetivo excluído!");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
+  // Mutation para deletar objetivo
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("objectives")
         .delete()
         .eq("id", id);
 
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
       toast.success("Objetivo excluído!");
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao excluir objetivo: " + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  const addProgressLog = useCallback(async (
-    objectiveId: string, 
-    value: number, 
-    notes?: string,
-    loggedAt?: string
-  ): Promise<ProgressLog | null> => {
-    const newLog: ProgressLog = {
-      id: `log-${Date.now()}`,
-      objective_id: objectiveId,
-      value,
-      notes: notes || null,
-      logged_at: loggedAt || new Date().toISOString(),
-      created_by: user?.id || "",
-    };
-
-    if (DEMO_MODE) {
-      const obj = demoObjectives.find(o => o.id === objectiveId);
-      if (obj) {
-        const newLogs = [...(obj.progressLogs || []), newLog];
-        const computedCurrentValue = newLogs.reduce((sum, l) => sum + l.value, 0);
-        const computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
-
-        demoStore.updateObjective(objectiveId, {
-          progressLogs: newLogs,
-          current_value: computedCurrentValue,
-          status: computedStatus,
-        });
-      }
-
-      toast.success("Progresso registrado!");
-      return newLog;
-    }
-
-    try {
+  // Mutation para adicionar log de progresso
+  const addLogMutation = useMutation({
+    mutationFn: async ({ objectiveId, value, notes, loggedAt }: { 
+      objectiveId: string; 
+      value: number; 
+      notes?: string;
+      loggedAt?: string;
+    }) => {
       const { data, error } = await supabase
         .from("progress_logs")
         .insert({
@@ -253,45 +186,110 @@ export function useObjectives() {
         .single();
 
       if (error) throw error;
-      toast.success("Progresso registrado!");
-      return data as ProgressLog;
-    } catch (error: any) {
-      toast.error("Erro ao registrar progresso: " + error.message);
-      return null;
-    }
-  }, [user?.id, demoObjectives]);
 
-  const deleteProgressLog = useCallback(async (objectiveId: string, logId: string) => {
-    if (DEMO_MODE) {
-      const obj = demoObjectives.find(o => o.id === objectiveId);
+      // Atualizar valor atual do objetivo
+      const obj = objectives.find(o => o.id === objectiveId);
       if (obj) {
-        const filteredLogs = (obj.progressLogs || []).filter(l => l.id !== logId);
-        const computedCurrentValue = filteredLogs.reduce((sum, l) => sum + l.value, 0);
-        const computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
-
-        demoStore.updateObjective(objectiveId, {
-          progressLogs: filteredLogs,
-          current_value: computedCurrentValue,
-          status: computedStatus,
-        });
+        const logsForObj = progressLogs.filter(l => l.objective_id === objectiveId);
+        const newCurrentValue = logsForObj.reduce((sum, l) => sum + l.value, 0) + value;
+        
+        await supabase
+          .from("objectives")
+          .update({ 
+            current_value: newCurrentValue,
+            status: calculateStatus(newCurrentValue, obj.target_value || 0, obj.end_date),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", objectiveId);
       }
-      
-      toast.success("Registro removido!");
-      return;
-    }
 
-    try {
+      return data as ProgressLog;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
+      queryClient.invalidateQueries({ queryKey: [LOGS_QUERY_KEY, currentCompany] });
+      toast.success("Progresso registrado!");
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao registrar progresso: " + error.message);
+    },
+  });
+
+  // Mutation para deletar log de progresso
+  const deleteLogMutation = useMutation({
+    mutationFn: async ({ objectiveId, logId }: { objectiveId: string; logId: string }) => {
+      const logToDelete = progressLogs.find(l => l.id === logId);
+      
       const { error } = await supabase
         .from("progress_logs")
         .delete()
         .eq("id", logId);
 
       if (error) throw error;
+
+      // Atualizar valor atual do objetivo
+      const obj = objectives.find(o => o.id === objectiveId);
+      if (obj && logToDelete) {
+        const logsForObj = progressLogs.filter(l => l.objective_id === objectiveId && l.id !== logId);
+        const newCurrentValue = logsForObj.reduce((sum, l) => sum + l.value, 0);
+        
+        await supabase
+          .from("objectives")
+          .update({ 
+            current_value: newCurrentValue,
+            status: calculateStatus(newCurrentValue, obj.target_value || 0, obj.end_date),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", objectiveId);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
+      queryClient.invalidateQueries({ queryKey: [LOGS_QUERY_KEY, currentCompany] });
       toast.success("Registro removido!");
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao remover registro: " + error.message);
+    },
+  });
+
+  const addObjective = useCallback(async (
+    data: Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs" | "current_value" | "status">
+  ): Promise<Objective | null> => {
+    try {
+      return await addMutation.mutateAsync(data);
+    } catch {
+      return null;
     }
-  }, [demoObjectives]);
+  }, [addMutation]);
+
+  const updateObjective = useCallback(async (
+    id: string, 
+    data: Partial<Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs">>
+  ) => {
+    await updateMutation.mutateAsync({ id, data });
+  }, [updateMutation]);
+
+  const deleteObjective = useCallback(async (id: string) => {
+    await deleteMutation.mutateAsync(id);
+  }, [deleteMutation]);
+
+  const addProgressLog = useCallback(async (
+    objectiveId: string, 
+    value: number, 
+    notes?: string,
+    loggedAt?: string
+  ): Promise<ProgressLog | null> => {
+    try {
+      return await addLogMutation.mutateAsync({ objectiveId, value, notes, loggedAt });
+    } catch {
+      return null;
+    }
+  }, [addLogMutation]);
+
+  const deleteProgressLog = useCallback(async (objectiveId: string, logId: string) => {
+    await deleteLogMutation.mutateAsync({ objectiveId, logId });
+  }, [deleteLogMutation]);
 
   const getProgress = useCallback((objective: Objective) => {
     if (!objective.target_value) return 0;
@@ -299,16 +297,21 @@ export function useObjectives() {
   }, []);
 
   const getStats = useCallback(() => {
-    const total = objectives.length;
-    const concluido = objectives.filter(o => o.status === "concluido").length;
-    const emAndamento = objectives.filter(o => o.status === "em_andamento").length;
-    const atrasado = objectives.filter(o => o.status === "atrasado").length;
-    const pausado = objectives.filter(o => o.status === "pausado").length;
+    const total = objectivesWithLogs.length;
+    const concluido = objectivesWithLogs.filter(o => o.status === "concluido").length;
+    const emAndamento = objectivesWithLogs.filter(o => o.status === "em_andamento").length;
+    const atrasado = objectivesWithLogs.filter(o => o.status === "atrasado").length;
+    const pausado = objectivesWithLogs.filter(o => o.status === "pausado").length;
     return { total, concluido, emAndamento, atrasado, pausado };
-  }, [objectives]);
+  }, [objectivesWithLogs]);
+
+  const refreshObjectives = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
+    queryClient.invalidateQueries({ queryKey: [LOGS_QUERY_KEY, currentCompany] });
+  }, [queryClient, currentCompany]);
 
   return {
-    objectives,
+    objectives: objectivesWithLogs,
     isLoading,
     addObjective,
     updateObjective,
@@ -317,6 +320,6 @@ export function useObjectives() {
     deleteProgressLog,
     getProgress,
     getStats,
-    refreshObjectives: () => {},
+    refreshObjectives,
   };
 }

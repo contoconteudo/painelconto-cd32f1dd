@@ -1,12 +1,11 @@
 /**
  * Contexto para gerenciar a empresa/espaço selecionado.
- * Usa useUserSession para evitar queries duplicadas.
- * 
- * FAIL-SAFE: Nunca bloqueia a UI em loading infinito.
+ * Usa useUserSession para dados de permissões.
  */
 
 import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from "react";
 import { useUserSession } from "@/hooks/useUserSession";
+import { COMPANY_STORAGE_KEY } from "@/data/mockData";
 
 export type Company = string;
 
@@ -29,8 +28,6 @@ interface CompanyContextType {
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
-const STORAGE_KEY = "conto-company-selection";
-
 interface CompanyProviderProps {
   children: ReactNode;
 }
@@ -39,13 +36,13 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
   const session = useUserSession();
   const [currentCompany, setCurrentCompanyState] = useState<Company>(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) || "";
+      return localStorage.getItem(COMPANY_STORAGE_KEY) || "";
     } catch {
       return "";
     }
   });
 
-  // Mapear espaços disponíveis - com fail-safe
+  // Mapear espaços disponíveis
   const availableSpaces: Space[] = useMemo(() => {
     try {
       return (session.availableSpaces || []).map((s) => ({
@@ -64,13 +61,11 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
 
   // Atualizar empresa selecionada quando dados carregarem
   useEffect(() => {
-    // Não bloquear se ainda está carregando sessão principal
     if (session.isLoading) return;
 
     try {
-      const savedCompany = localStorage.getItem(STORAGE_KEY);
+      const savedCompany = localStorage.getItem(COMPANY_STORAGE_KEY);
       
-      // Se a empresa salva é válida, mantém
       if (savedCompany && availableSpaceIds.includes(savedCompany)) {
         if (currentCompany !== savedCompany) {
           setCurrentCompanyState(savedCompany);
@@ -78,28 +73,25 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
         return;
       }
       
-      // Senão, seleciona a primeira disponível
       if (availableSpaceIds.length > 0 && !availableSpaceIds.includes(currentCompany)) {
         setCurrentCompanyState(availableSpaceIds[0]);
-        localStorage.setItem(STORAGE_KEY, availableSpaceIds[0]);
+        localStorage.setItem(COMPANY_STORAGE_KEY, availableSpaceIds[0]);
       }
-    } catch (error) {
-      console.warn("Erro ao sincronizar espaço selecionado:", error);
+    } catch {
+      // Silenciar erros de localStorage
     }
   }, [session.isLoading, availableSpaceIds, currentCompany]);
 
   const setCurrentCompany = useCallback((company: Company) => {
     try {
-      // Verificar se o usuário tem acesso (admin tem acesso a tudo)
       if (!session.isAdmin && session.allowedSpaces.length > 0 && !session.allowedSpaces.includes(company)) {
-        console.warn(`Usuário não tem acesso ao espaço ${company}`);
         return;
       }
       
       setCurrentCompanyState(company);
-      localStorage.setItem(STORAGE_KEY, company);
-    } catch (error) {
-      console.warn("Erro ao definir empresa:", error);
+      localStorage.setItem(COMPANY_STORAGE_KEY, company);
+    } catch {
+      // Silenciar erros de localStorage
     }
   }, [session.isAdmin, session.allowedSpaces]);
 
@@ -109,7 +101,6 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
     allowedCompanies: session.allowedSpaces || [],
     availableSpaces,
     isAdmin: session.isAdmin || false,
-    // IMPORTANTE: isLoading só vem da sessão principal, não bloqueia por spaces
     isLoading: session.isLoading,
   }), [currentCompany, setCurrentCompany, session.allowedSpaces, availableSpaces, session.isAdmin, session.isLoading]);
 

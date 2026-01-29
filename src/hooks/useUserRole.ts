@@ -1,12 +1,10 @@
 /**
  * Hook para verificar roles e permissões do usuário.
- * Usa useUserSession como fonte de dados.
  */
 
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserSession, AppRole, ModulePermission } from "./useUserSession";
-import { DEMO_MODE, MOCK_ADMIN_USER } from "@/data/mockData";
 
 export type { AppRole, ModulePermission };
 export type CompanyAccess = string;
@@ -54,38 +52,21 @@ export function useUserRole(): UseUserRoleReturn {
 
   // Buscar todos os usuários
   const getAllUsers = useCallback(async (): Promise<UserProfile[]> => {
-    if (DEMO_MODE) {
-      return [
-        {
-          id: MOCK_ADMIN_USER.id,
-          email: MOCK_ADMIN_USER.email,
-          full_name: MOCK_ADMIN_USER.full_name,
-          role: MOCK_ADMIN_USER.role,
-          modules: MOCK_ADMIN_USER.modules,
-          companies: MOCK_ADMIN_USER.companies,
-        },
-      ];
-    }
-
     try {
-      // Buscar todos os profiles
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id, email, full_name");
 
       if (profilesError) throw profilesError;
 
-      // Buscar roles
       const { data: roles } = await supabase
         .from("user_roles")
         .select("user_id, role");
 
-      // Buscar permissões
       const { data: permissions } = await supabase
         .from("user_permissions")
         .select("user_id, modules, spaces");
 
-      // Combinar dados
       return (profiles || []).map(profile => {
         const userRole = roles?.find(r => r.user_id === profile.id);
         const userPerms = permissions?.find(p => p.user_id === profile.id);
@@ -99,8 +80,7 @@ export function useUserRole(): UseUserRoleReturn {
           companies: userPerms?.spaces || [],
         };
       });
-    } catch (error) {
-      console.error("Erro ao buscar usuários:", error);
+    } catch {
       return [];
     }
   }, []);
@@ -110,47 +90,26 @@ export function useUserRole(): UseUserRoleReturn {
     modules: ModulePermission[], 
     companies: CompanyAccess[]
   ) => {
-    if (DEMO_MODE) {
-      console.log("DEMO: updateUserPermissions", { userId, modules, companies });
-      return;
-    }
+    const { error } = await supabase
+      .from("user_permissions")
+      .upsert({
+        user_id: userId,
+        modules,
+        spaces: companies,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id" });
 
-    try {
-      const { error } = await supabase
-        .from("user_permissions")
-        .upsert({
-          user_id: userId,
-          modules,
-          spaces: companies,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "user_id" });
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Erro ao atualizar permissões:", error);
-      throw error;
-    }
+    if (error) throw error;
   }, []);
 
   const updateUserRole = useCallback(async (userId: string, newRole: AppRole) => {
-    if (DEMO_MODE) {
-      console.log("DEMO: updateUserRole", { userId, newRole });
-      return;
-    }
+    await supabase.from("user_roles").delete().eq("user_id", userId);
+    
+    const { error } = await supabase
+      .from("user_roles")
+      .insert({ user_id: userId, role: newRole });
 
-    try {
-      // Deletar role existente e inserir nova
-      await supabase.from("user_roles").delete().eq("user_id", userId);
-      
-      const { error } = await supabase
-        .from("user_roles")
-        .insert({ user_id: userId, role: newRole });
-
-      if (error) throw error;
-    } catch (error) {
-      console.error("Erro ao atualizar role:", error);
-      throw error;
-    }
+    if (error) throw error;
   }, []);
 
   return {

@@ -1,48 +1,39 @@
 /**
  * Tipos centralizados do sistema.
- * Alinhados com o schema real do banco de dados Supabase.
+ * Alinhados com o schema do banco de dados Supabase.
  */
 
-export interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// Status de cliente - valores em português conforme banco
+// Status de cliente
 export type ClientStatus = 'ativo' | 'inativo' | 'churn';
 
-// Status de lead - valores em português conforme banco
+// Status de lead
 export type LeadStatus = 'novo' | 'contato' | 'reuniao_agendada' | 'reuniao_feita' | 'proposta' | 'negociacao' | 'ganho' | 'perdido';
 
-// Status de objetivo - valores em português conforme banco
+// Status de objetivo
 export type ObjectiveStatus = 'em_andamento' | 'concluido' | 'atrasado' | 'pausado';
+
+// Temperatura do lead
+export type LeadTemperature = 'cold' | 'warm' | 'hot';
 
 // Client - alinhado com tabela clients do Supabase
 export interface Client {
   id: string;
   space_id: string;
-  name: string; // Nome do contato principal
-  company: string | null; // Empresa (opcional)
+  name: string;
+  company: string | null;
   email: string | null;
   phone: string | null;
   segment: string | null;
   status: ClientStatus;
   monthly_value: number | null;
-  contract_start: string | null; // Data de início do contrato
-  package: string | null; // Pacote contratado
+  contract_start: string | null;
+  package: string | null;
   notes: string | null;
-  created_by: string | null; // user_id de quem criou
+  created_by: string | null;
   created_at: string;
   updated_at: string;
-  // Campos calculados no frontend
   npsHistory?: NPSRecord[];
 }
-
-// Temperatura do lead
-export type LeadTemperature = 'cold' | 'warm' | 'hot';
 
 // Lead - alinhado com tabela leads do Supabase
 export interface Lead {
@@ -53,9 +44,9 @@ export interface Lead {
   email: string | null;
   phone: string | null;
   status: LeadStatus;
-  source: string | null; // Origem do lead
+  source: string | null;
   value: number | null;
-  temperature: LeadTemperature; // Temperatura do lead
+  temperature: LeadTemperature;
   notes: string | null;
   created_by: string | null;
   created_at: string;
@@ -68,7 +59,7 @@ export interface NPSRecord {
   client_id: string | null;
   space_id: string;
   score: number | null;
-  feedback: string | null; // Era "notes"
+  feedback: string | null;
   recorded_at: string;
   created_by: string | null;
 }
@@ -77,21 +68,20 @@ export interface NPSRecord {
 export interface Objective {
   id: string;
   space_id: string;
-  title: string; // Era "name"
+  title: string;
   description: string | null;
-  category: string | null; // Era "valueType"
+  category: string | null;
   target_value: number | null;
   current_value: number;
-  unit: string; // Unidade de medida (%, R$, etc.)
+  unit: string;
   start_date: string | null;
-  end_date: string | null; // Era "deadline"
+  end_date: string | null;
   status: ObjectiveStatus;
-  is_commercial: boolean; // Se é meta comercial
-  value_type: string | null; // Tipo de valor (monetário, percentual, etc.)
+  is_commercial: boolean;
+  value_type: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  // Campos calculados no frontend
   progressLogs?: ProgressLog[];
 }
 
@@ -100,16 +90,10 @@ export interface ProgressLog {
   id: string;
   objective_id: string | null;
   value: number;
-  notes: string | null; // Era "description"
-  logged_at: string; // Era "date"
+  notes: string | null;
+  logged_at: string;
   created_by: string | null;
 }
-
-// Tipos legados para compatibilidade temporária durante migração
-// @deprecated - usar LeadStatus
-export type LeadStage = LeadStatus;
-// @deprecated - usar ClientStatus com valores em português
-export type LegacyClientStatus = 'active' | 'inactive' | 'churn';
 
 // Constantes de mapeamento para compatibilidade de UI
 export const CLIENT_STATUS_MAP: Record<string, ClientStatus> = {

@@ -1,15 +1,18 @@
 /**
  * Hook para gerenciar clientes.
- * Integra com Supabase para CRUD de clientes e NPS.
+ * Integra diretamente com Supabase.
  */
 
-import { useState, useCallback, useMemo, useSyncExternalStore } from "react";
-import { Client, NPSRecord, ClientStatus } from "@/types";
+import { useCallback, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Client, NPSRecord } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
-import { DEMO_MODE, demoStore } from "@/data/mockData";
+
+const QUERY_KEY = "clients";
+const NPS_QUERY_KEY = "nps_records";
 
 // Helper function to calculate average NPS from history
 export function calculateClientNPS(npsHistory: NPSRecord[]): number {
@@ -32,44 +35,55 @@ export function getLatestNPS(npsHistory: NPSRecord[]): number | null {
 export function useClients() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  // DEMO: usar useSyncExternalStore para reagir a mudanças no demoStore
-  const demoClients = useSyncExternalStore(
-    (callback) => demoStore.subscribe(callback),
-    () => demoStore.clients,
-    () => demoStore.clients
-  );
+  // Query para buscar clientes do espaço atual
+  const { data: clients = [], isLoading } = useQuery({
+    queryKey: [QUERY_KEY, currentCompany],
+    queryFn: async () => {
+      if (!currentCompany) return [];
+      
+      const { data, error } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("space_id", currentCompany)
+        .order("created_at", { ascending: false });
 
-  // Filtrar clientes pelo espaço atual
-  const clients = useMemo(() => {
-    if (DEMO_MODE) {
-      return currentCompany 
-        ? demoClients.filter(c => c.space_id === currentCompany)
-        : demoClients;
-    }
-    return [];
-  }, [demoClients, currentCompany]);
+      if (error) throw error;
+      return data as Client[];
+    },
+    enabled: !!currentCompany,
+  });
 
-  const addClient = useCallback(async (
-    data: Omit<Client, "id" | "created_at" | "updated_at" | "npsHistory">
-  ): Promise<Client | null> => {
-    if (DEMO_MODE) {
-      const newClient: Client = {
-        ...data,
-        id: `client-${Date.now()}`,
-        space_id: data.space_id || currentCompany || "",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        npsHistory: [],
-      };
-      demoStore.addClient(newClient);
-      toast.success("Cliente criado com sucesso!");
-      return newClient;
-    }
+  // Query para buscar NPS records
+  const { data: npsRecords = [] } = useQuery({
+    queryKey: [NPS_QUERY_KEY, currentCompany],
+    queryFn: async () => {
+      if (!currentCompany) return [];
+      
+      const { data, error } = await supabase
+        .from("nps_records")
+        .select("*")
+        .eq("space_id", currentCompany)
+        .order("recorded_at", { ascending: false });
 
-    setIsLoading(true);
-    try {
+      if (error) throw error;
+      return data as NPSRecord[];
+    },
+    enabled: !!currentCompany,
+  });
+
+  // Combinar clientes com histórico de NPS
+  const clientsWithNPS = useMemo(() => {
+    return clients.map(client => ({
+      ...client,
+      npsHistory: npsRecords.filter(r => r.client_id === client.id),
+    }));
+  }, [clients, npsRecords]);
+
+  // Mutation para adicionar cliente
+  const addMutation = useMutation({
+    mutationFn: async (data: Omit<Client, "id" | "created_at" | "updated_at" | "npsHistory">) => {
       const { data: newClient, error } = await supabase
         .from("clients")
         .insert({
@@ -81,96 +95,65 @@ export function useClients() {
         .single();
 
       if (error) throw error;
+      return newClient as Client;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
       toast.success("Cliente criado com sucesso!");
-      return { ...newClient, npsHistory: [] } as Client;
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao criar cliente: " + error.message);
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentCompany, user?.id]);
+    },
+  });
 
-  const updateClient = useCallback(async (
-    id: string, 
-    data: Partial<Omit<Client, "id" | "created_at" | "updated_at">>
-  ) => {
-    if (DEMO_MODE) {
-      demoStore.updateClient(id, { ...data, updated_at: new Date().toISOString() });
-      toast.success("Cliente atualizado!");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
+  // Mutation para atualizar cliente
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Client> }) => {
       const { error } = await supabase
         .from("clients")
         .update({ ...data, updated_at: new Date().toISOString() })
         .eq("id", id);
 
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
       toast.success("Cliente atualizado!");
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao atualizar cliente: " + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  const deleteClient = useCallback(async (id: string) => {
-    if (DEMO_MODE) {
-      demoStore.deleteClient(id);
-      toast.success("Cliente excluído!");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
+  // Mutation para deletar cliente
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("clients")
         .delete()
         .eq("id", id);
 
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
       toast.success("Cliente excluído!");
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao excluir cliente: " + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  const addNPSRecord = useCallback(async (
-    clientId: string, 
-    record: { score: number; feedback?: string; month?: number; year?: number }
-  ) => {
-    const month = record.month ?? new Date().getMonth();
-    const year = record.year ?? new Date().getFullYear();
-    const recordedDate = new Date(year, month, 1);
+  // Mutation para adicionar NPS
+  const addNPSMutation = useMutation({
+    mutationFn: async ({ clientId, record }: { 
+      clientId: string; 
+      record: { score: number; feedback?: string; month?: number; year?: number } 
+    }) => {
+      const month = record.month ?? new Date().getMonth();
+      const year = record.year ?? new Date().getFullYear();
+      const recordedDate = new Date(year, month, 1);
 
-    if (DEMO_MODE) {
-      const newRecord: NPSRecord = {
-        id: `nps-${Date.now()}`,
-        client_id: clientId,
-        space_id: currentCompany || "",
-        score: record.score,
-        feedback: record.feedback || null,
-        recorded_at: recordedDate.toISOString(),
-        created_by: user?.id || "",
-      };
-
-      const client = demoClients.find(c => c.id === clientId);
-      if (client) {
-        demoStore.updateClient(clientId, {
-          npsHistory: [...(client.npsHistory || []), newRecord],
-        });
-      }
-      
-      toast.success("NPS registrado!");
-      return newRecord;
-    }
-
-    try {
       const { data, error } = await supabase
         .from("nps_records")
         .insert({
@@ -185,73 +168,111 @@ export function useClients() {
         .single();
 
       if (error) throw error;
-      toast.success("NPS registrado!");
       return data as NPSRecord;
-    } catch (error: any) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [NPS_QUERY_KEY, currentCompany] });
+      toast.success("NPS registrado!");
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao registrar NPS: " + error.message);
-      return null;
-    }
-  }, [currentCompany, user?.id, demoClients]);
+    },
+  });
 
-  const deleteNPSRecord = useCallback(async (clientId: string, recordId: string) => {
-    if (DEMO_MODE) {
-      const client = demoClients.find(c => c.id === clientId);
-      if (client) {
-        demoStore.updateClient(clientId, {
-          npsHistory: (client.npsHistory || []).filter(r => r.id !== recordId),
-        });
-      }
-      toast.success("NPS removido!");
-      return;
-    }
-
-    try {
+  // Mutation para deletar NPS
+  const deleteNPSMutation = useMutation({
+    mutationFn: async (recordId: string) => {
       const { error } = await supabase
         .from("nps_records")
         .delete()
         .eq("id", recordId);
 
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [NPS_QUERY_KEY, currentCompany] });
       toast.success("NPS removido!");
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao remover NPS: " + error.message);
+    },
+  });
+
+  const addClient = useCallback(async (
+    data: Omit<Client, "id" | "created_at" | "updated_at" | "npsHistory">
+  ): Promise<Client | null> => {
+    try {
+      return await addMutation.mutateAsync(data);
+    } catch {
+      return null;
     }
-  }, [demoClients]);
+  }, [addMutation]);
+
+  const updateClient = useCallback(async (
+    id: string, 
+    data: Partial<Omit<Client, "id" | "created_at" | "updated_at">>
+  ) => {
+    await updateMutation.mutateAsync({ id, data });
+  }, [updateMutation]);
+
+  const deleteClient = useCallback(async (id: string) => {
+    await deleteMutation.mutateAsync(id);
+  }, [deleteMutation]);
+
+  const addNPSRecord = useCallback(async (
+    clientId: string, 
+    record: { score: number; feedback?: string; month?: number; year?: number }
+  ) => {
+    try {
+      return await addNPSMutation.mutateAsync({ clientId, record });
+    } catch {
+      return null;
+    }
+  }, [addNPSMutation]);
+
+  const deleteNPSRecord = useCallback(async (_clientId: string, recordId: string) => {
+    await deleteNPSMutation.mutateAsync(recordId);
+  }, [deleteNPSMutation]);
 
   const getStats = useCallback(() => {
-    const activeClients = clients.filter(c => c.status === "ativo");
+    const activeClients = clientsWithNPS.filter(c => c.status === "ativo");
     const totalMRR = activeClients.reduce((sum, c) => sum + (c.monthly_value || 0), 0);
     const avgTicket = activeClients.length > 0 
       ? Math.round(totalMRR / activeClients.length) 
       : 0;
     
-    const allNPSScores = clients.flatMap(c => 
-      (c.npsHistory || []).filter(r => r.score !== null).map(r => r.score as number)
-    );
+    const allNPSScores = npsRecords
+      .filter(r => r.score !== null)
+      .map(r => r.score as number);
     const avgNPS = allNPSScores.length > 0 
       ? Math.round((allNPSScores.reduce((sum, s) => sum + s, 0) / allNPSScores.length) * 10) / 10 
       : 0;
 
     return {
       activeCount: activeClients.length,
-      inactiveCount: clients.filter(c => c.status === "inativo").length,
-      churnCount: clients.filter(c => c.status === "churn").length,
+      inactiveCount: clientsWithNPS.filter(c => c.status === "inativo").length,
+      churnCount: clientsWithNPS.filter(c => c.status === "churn").length,
       totalMRR,
       avgTicket,
       avgNPS,
     };
-  }, [clients]);
+  }, [clientsWithNPS, npsRecords]);
 
   const clientsWithNPSInfo = useMemo(() => {
-    return clients.map(client => ({
+    return clientsWithNPS.map(client => ({
       ...client,
       latestNPS: getLatestNPS(client.npsHistory || []),
       avgNPS: calculateClientNPS(client.npsHistory || []),
     }));
-  }, [clients]);
+  }, [clientsWithNPS]);
+
+  const refreshClients = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
+    queryClient.invalidateQueries({ queryKey: [NPS_QUERY_KEY, currentCompany] });
+  }, [queryClient, currentCompany]);
 
   return {
-    clients,
+    clients: clientsWithNPS,
     clientsWithNPSInfo,
     isLoading,
     addClient,
@@ -260,6 +281,6 @@ export function useClients() {
     addNPSRecord,
     deleteNPSRecord,
     getStats,
-    refreshClients: () => {},
+    refreshClients,
   };
 }

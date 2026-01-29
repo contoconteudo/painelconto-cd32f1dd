@@ -1,12 +1,11 @@
 /**
  * Hook para gerenciar espaços (empresas) do sistema.
- * Integra com Supabase para CRUD de espaços.
+ * Integra diretamente com Supabase.
  */
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserSession } from "./useUserSession";
-import { DEMO_MODE, demoStore, MockSpace } from "@/data/mockData";
 
 export interface Space {
   id: string;
@@ -55,31 +54,15 @@ const generateSpaceId = (name: string): string => {
 export function useSpaces() {
   const session = useUserSession();
 
-  // DEMO: usar useSyncExternalStore para reagir a mudanças no demoStore
-  const storeSpaces = useSyncExternalStore(
-    (callback) => demoStore.subscribe(callback),
-    () => demoStore.spaces,
-    () => demoStore.spaces
-  );
-
-  // Mapear espaços
-  const spaces: Space[] = DEMO_MODE 
-    ? storeSpaces.map(s => ({
-        id: s.id,
-        label: s.label,
-        description: s.description || "",
-        color: s.color || "bg-primary",
-        icon: s.icon || "Building",
-        createdAt: new Date().toISOString(),
-      }))
-    : session.availableSpaces.map(s => ({
-        id: s.id,
-        label: s.label,
-        description: s.description || "",
-        color: s.color || "bg-primary",
-        icon: s.icon || "Building",
-        createdAt: s.created_at || new Date().toISOString(),
-      }));
+  // Mapear espaços do formato do hook de sessão
+  const spaces: Space[] = session.availableSpaces.map(s => ({
+    id: s.id,
+    label: s.label,
+    description: s.description || "",
+    color: s.color || "bg-primary",
+    icon: s.icon || "Building",
+    createdAt: s.created_at || new Date().toISOString(),
+  }));
 
   // Criar novo espaço
   const createSpace = useCallback(async (
@@ -94,7 +77,6 @@ export function useSpaces() {
 
     const id = generateSpaceId(label);
     
-    // Validações
     if (!label.trim()) {
       return { success: false, error: "Nome é obrigatório" };
     }
@@ -107,26 +89,6 @@ export function useSpaces() {
       return { success: false, error: "Já existe um espaço com nome similar" };
     }
 
-    // MODO DEMO
-    if (DEMO_MODE) {
-      const newSpace: MockSpace = {
-        id,
-        label: label.trim(),
-        description: description.trim() || `Espaço ${label.trim()}`,
-        color,
-        icon,
-      };
-      
-      demoStore.addSpace(newSpace);
-      window.dispatchEvent(new CustomEvent("spaces-changed"));
-      
-      return { 
-        success: true, 
-        space: { ...newSpace, createdAt: new Date().toISOString() } 
-      };
-    }
-
-    // PRODUÇÃO
     const { data, error } = await supabase
       .from("spaces")
       .insert({
@@ -141,7 +103,6 @@ export function useSpaces() {
       .single();
 
     if (error) {
-      console.error("Erro ao criar espaço:", error);
       return { success: false, error: error.message };
     }
 
@@ -165,10 +126,6 @@ export function useSpaces() {
     id: string, 
     updates: Partial<Omit<Space, "id" | "createdAt">>
   ): Promise<{ success: boolean; error?: string }> => {
-    if (DEMO_MODE) {
-      return { success: true };
-    }
-
     const { error } = await supabase
       .from("spaces")
       .update(updates)
@@ -190,12 +147,6 @@ export function useSpaces() {
   ): Promise<{ success: boolean; error?: string }> => {
     if (spaces.length <= 1) {
       return { success: false, error: "Não é possível excluir o último espaço" };
-    }
-
-    if (DEMO_MODE) {
-      demoStore.deleteSpace(id);
-      window.dispatchEvent(new CustomEvent("spaces-changed"));
-      return { success: true };
     }
 
     const { error } = await supabase
@@ -220,7 +171,7 @@ export function useSpaces() {
 
   return {
     spaces,
-    isLoading: DEMO_MODE ? false : session.spacesLoading,
+    isLoading: session.spacesLoading,
     createSpace,
     updateSpace,
     deleteSpace,
@@ -233,24 +184,12 @@ export function useSpaces() {
 
 // Função helper para uso fora de componentes React
 export async function getAllSpaces(): Promise<Space[]> {
-  if (DEMO_MODE) {
-    return demoStore.spaces.map(s => ({
-      id: s.id,
-      label: s.label,
-      description: s.description || "",
-      color: s.color || "bg-primary",
-      icon: s.icon || "Building",
-      createdAt: new Date().toISOString(),
-    }));
-  }
-
   const { data, error } = await supabase
     .from("spaces")
     .select("*")
     .order("created_at", { ascending: true });
 
   if (error) {
-    console.error("Erro ao carregar espaços:", error);
     return [];
   }
 

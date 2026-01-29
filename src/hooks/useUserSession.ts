@@ -4,9 +4,8 @@
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { DEMO_MODE, MOCK_ADMIN_USER, demoStore } from "@/data/mockData";
 
 export type AppRole = "admin" | "gestor" | "comercial" | "analista";
 export type ModulePermission = "dashboard" | "crm" | "clients" | "objectives" | "strategy" | "settings" | "admin";
@@ -46,24 +45,8 @@ const ALL_MODULES: ModulePermission[] = [
 const QUERY_KEY = ["user-session"];
 const SPACES_KEY = ["available-spaces"];
 
-// Sessão DEMO simulada
-function getDemoSession(): UserSession {
-  return {
-    user: {
-      id: MOCK_ADMIN_USER.id,
-      email: MOCK_ADMIN_USER.email,
-      fullName: MOCK_ADMIN_USER.full_name,
-    },
-    role: MOCK_ADMIN_USER.role,
-    modules: ALL_MODULES,
-    spaces: demoStore.spaces.map(s => s.id),
-    isAdmin: true,
-    permissionsState: "ok",
-  };
-}
-
-// Buscar sessão real do Supabase
-async function fetchRealSession(): Promise<UserSession> {
+// Buscar sessão do Supabase
+async function fetchSession(): Promise<UserSession> {
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session?.user) {
@@ -84,21 +67,21 @@ async function fetchRealSession(): Promise<UserSession> {
     .from("profiles")
     .select("email, full_name")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   // Buscar role
   const { data: roleData } = await supabase
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   // Buscar permissões
   const { data: permissions } = await supabase
     .from("user_permissions")
     .select("modules, spaces")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   const role = roleData?.role as AppRole | null;
   const isAdmin = role === "admin";
@@ -120,50 +103,27 @@ async function fetchRealSession(): Promise<UserSession> {
 export function useUserSession() {
   const queryClient = useQueryClient();
 
-  // Usar useSyncExternalStore para reagir a mudanças nos espaços do demoStore
-  const demoSpaces = useSyncExternalStore(
-    (callback) => demoStore.subscribe(callback),
-    () => demoStore.spaces,
-    () => demoStore.spaces
-  );
-
   // Query para sessão do usuário
   const sessionQuery = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: async (): Promise<UserSession> => {
-      if (DEMO_MODE) {
-        return getDemoSession();
-      }
-      return fetchRealSession();
-    },
+    queryFn: fetchSession,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 0,
+    retry: 1,
   });
 
   // Query para espaços disponíveis
   const spacesQuery = useQuery({
     queryKey: SPACES_KEY,
     queryFn: async (): Promise<NormalizedSpace[]> => {
-      if (DEMO_MODE) {
-        return demoSpaces.map(s => ({
-          id: s.id,
-          label: s.label,
-          description: s.description,
-          color: s.color,
-          icon: s.icon,
-        }));
-      }
-
       const { data, error } = await supabase
         .from("spaces")
         .select("*")
         .order("created_at", { ascending: true });
 
       if (error) {
-        console.error("Erro ao carregar espaços:", error);
-        return [];
+        throw error;
       }
 
       return (data || []).map(s => ({
@@ -177,18 +137,10 @@ export function useUserSession() {
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
-    enabled: !DEMO_MODE || demoSpaces.length > 0,
+    retry: 1,
   });
 
-  const availableSpaces: NormalizedSpace[] = DEMO_MODE
-    ? demoSpaces.map(s => ({
-        id: s.id,
-        label: s.label,
-        description: s.description,
-        color: s.color,
-        icon: s.icon,
-      }))
-    : spacesQuery.data || [];
+  const availableSpaces: NormalizedSpace[] = spacesQuery.data || [];
 
   const allowedSpaces = sessionQuery.data?.isAdmin
     ? availableSpaces.map((s) => s.id)
@@ -196,8 +148,6 @@ export function useUserSession() {
 
   // Escutar mudanças de autenticação
   useEffect(() => {
-    if (DEMO_MODE) return;
-    
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
         queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -243,27 +193,17 @@ export function useUserSession() {
     await queryClient.invalidateQueries({ queryKey: SPACES_KEY });
   }, [queryClient]);
 
-  const isLoading = sessionQuery.isLoading;
-  const spacesLoading = DEMO_MODE ? false : spacesQuery.isLoading;
-
   return {
-    // Dados da sessão
     user: sessionQuery.data?.user || null,
     role: sessionQuery.data?.role || null,
     modules: sessionQuery.data?.modules || [],
     allowedSpaces,
     isAdmin: sessionQuery.data?.isAdmin || false,
     permissionsState: sessionQuery.data?.permissionsState || "ok",
-    
-    // Estados de loading
-    isLoading,
+    isLoading: sessionQuery.isLoading,
     isAuthenticated: !!sessionQuery.data?.user,
-    
-    // Espaços disponíveis
     availableSpaces,
-    spacesLoading,
-    
-    // Funções auxiliares
+    spacesLoading: spacesQuery.isLoading,
     hasRole,
     canAccessModule,
     canAccessSpace,
