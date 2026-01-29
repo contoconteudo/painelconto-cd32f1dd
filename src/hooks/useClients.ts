@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from "react";
 import { Client, NPSRecord, ClientStatus } from "@/types";
 // import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
-import { DEMO_MODE, MOCK_CLIENTS } from "@/data/mockData";
+import { DEMO_MODE, demoStore } from "@/data/mockData";
 
 // Helper function to calculate average NPS from history
 export function calculateClientNPS(npsHistory: NPSRecord[]): number {
@@ -25,72 +25,60 @@ export function getLatestNPS(npsHistory: NPSRecord[]): number | null {
 }
 
 export function useClients() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { currentCompany } = useCompany();
   const { user } = useAuth();
 
-  // Carregar clientes - MODO DEMO
-  const loadClients = useCallback(async () => {
-    setIsLoading(true);
+  // Usar useSyncExternalStore para reagir a mudanças no demoStore
+  const allClients = useSyncExternalStore(
+    (callback) => demoStore.subscribe(callback),
+    () => demoStore.clients,
+    () => demoStore.clients
+  );
 
-    // MODO DEMO: retorna dados mock filtrados por espaço
-    if (DEMO_MODE) {
-      const filteredClients = currentCompany 
-        ? MOCK_CLIENTS.filter(c => c.space_id === currentCompany)
-        : MOCK_CLIENTS;
-      setClients(filteredClients);
-      setIsLoading(false);
-      return;
-    }
+  // Filtrar clientes pelo espaço atual
+  const clients = useMemo(() => {
+    if (!DEMO_MODE) return [];
+    return currentCompany 
+      ? allClients.filter(c => c.space_id === currentCompany)
+      : allClients;
+  }, [allClients, currentCompany]);
 
-    // Código real comentado para DEMO
-    setIsLoading(false);
-  }, [currentCompany]);
-
-  useEffect(() => {
-    loadClients();
-  }, [loadClients]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const addClient = useCallback(async (
     data: Omit<Client, "id" | "created_at" | "updated_at" | "npsHistory">
   ): Promise<Client | null> => {
-    // MODO DEMO: adiciona localmente
     if (DEMO_MODE) {
       const newClient: Client = {
         ...data,
         id: `client-${Date.now()}`,
+        space_id: data.space_id || currentCompany || "conto",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         npsHistory: [],
       };
-      setClients(prev => [newClient, ...prev]);
+      demoStore.addClient(newClient);
       toast.success("Cliente criado com sucesso! (DEMO)");
       return newClient;
     }
-
     toast.error("Modo produção desativado.");
     return null;
-  }, []);
+  }, [currentCompany]);
 
   const updateClient = useCallback(async (
     id: string, 
     data: Partial<Omit<Client, "id" | "created_at" | "updated_at">>
   ) => {
-    // MODO DEMO: atualiza localmente
     if (DEMO_MODE) {
-      setClients(prev => prev.map(client => 
-        client.id === id ? { ...client, ...data, updated_at: new Date().toISOString() } : client
-      ));
+      demoStore.updateClient(id, { ...data, updated_at: new Date().toISOString() });
       toast.success("Cliente atualizado! (DEMO)");
       return;
     }
   }, []);
 
   const deleteClient = useCallback(async (id: string) => {
-    // MODO DEMO: remove localmente
     if (DEMO_MODE) {
-      setClients(prev => prev.filter(client => client.id !== id));
+      demoStore.deleteClient(id);
       toast.success("Cliente excluído! (DEMO)");
       return;
     }
@@ -100,7 +88,6 @@ export function useClients() {
     clientId: string, 
     record: { score: number; feedback?: string; month?: number; year?: number }
   ) => {
-    // MODO DEMO: adiciona NPS localmente
     if (DEMO_MODE) {
       // Usar mês/ano fornecido ou atual
       const month = record.month ?? new Date().getMonth();
@@ -119,36 +106,33 @@ export function useClients() {
         created_by: user?.id || "demo-admin-001",
       };
 
-      setClients(prev => prev.map(client => {
-        if (client.id !== clientId) return client;
-        return { 
-          ...client, 
-          npsHistory: [...(client.npsHistory || []), newRecord] 
-        };
-      }));
+      // Encontrar o cliente e atualizar seu npsHistory
+      const client = allClients.find(c => c.id === clientId);
+      if (client) {
+        demoStore.updateClient(clientId, {
+          npsHistory: [...(client.npsHistory || []), newRecord],
+        });
+      }
       
       toast.success("NPS registrado! (DEMO)");
       return newRecord;
     }
 
     return null;
-  }, [currentCompany, user?.id]);
+  }, [currentCompany, user?.id, allClients]);
 
   const deleteNPSRecord = useCallback(async (clientId: string, recordId: string) => {
-    // MODO DEMO: remove NPS localmente
     if (DEMO_MODE) {
-      setClients(prev => prev.map(client => {
-        if (client.id !== clientId) return client;
-        return {
-          ...client,
+      const client = allClients.find(c => c.id === clientId);
+      if (client) {
+        demoStore.updateClient(clientId, {
           npsHistory: (client.npsHistory || []).filter(r => r.id !== recordId),
-        };
-      }));
-      
+        });
+      }
       toast.success("NPS removido! (DEMO)");
       return;
     }
-  }, []);
+  }, [allClients]);
 
   const getStats = useCallback(() => {
     const activeClients = clients.filter(c => c.status === "ativo");
@@ -192,6 +176,6 @@ export function useClients() {
     addNPSRecord,
     deleteNPSRecord,
     getStats,
-    refreshClients: loadClients,
+    refreshClients: () => {},
   };
 }
