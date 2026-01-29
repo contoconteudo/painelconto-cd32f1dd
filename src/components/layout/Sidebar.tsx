@@ -22,7 +22,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { STORAGE_KEYS } from "@/lib/constants";
+// Storage keys for cleanup on logout
+const STORAGE_KEYS = {
+  LEADS: "conto-leads",
+  CLIENTS: "conto-clients",
+  OBJECTIVES: "conto-objectives",
+};
 
 interface NavItem {
   name: string;

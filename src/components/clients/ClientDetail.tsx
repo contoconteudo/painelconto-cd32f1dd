@@ -4,10 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Client, NPSRecord } from "@/types";
-import { Building2, Mail, Phone, Calendar, Package, TrendingUp, Star, Trash2, Edit } from "lucide-react";
+import { Building2, Mail, Phone, Calendar, TrendingUp, Star, Trash2, Edit } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateClientNPS, getLatestNPS } from "@/hooks/useClients";
-import { CLIENT_STATUSES, MONTHS, getNPSColor } from "@/lib/constants";
+import { CLIENT_STATUSES, getNPSColor, MONTHS } from "@/lib/constants";
 import { usePermissions } from "@/hooks/usePermissions";
 
 interface ClientDetailProps {
@@ -31,8 +31,9 @@ function NPSScoreBadge({ score }: { score: number }) {
   );
 }
 
-function calculateLTV(monthlyValue: number, startDate: string): number {
-  const start = new Date(startDate);
+function calculateLTV(monthlyValue: number | null, contractStart: string | null): number {
+  if (!monthlyValue || !contractStart) return 0;
+  const start = new Date(contractStart);
   const now = new Date();
   const months = Math.max(1, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)));
   return monthlyValue * months;
@@ -43,16 +44,15 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onD
 
   if (!client) return null;
 
-  const avgNPS = calculateClientNPS(client.npsHistory);
-  const latestNPS = getLatestNPS(client.npsHistory);
-  const ltv = calculateLTV(client.monthlyValue, client.startDate);
+  const avgNPS = calculateClientNPS(client.npsHistory || []);
+  const latestNPS = getLatestNPS(client.npsHistory || []);
+  const ltv = calculateLTV(client.monthly_value, client.contract_start);
   const statusConfig = CLIENT_STATUSES[client.status];
 
   // Sort NPS history by date (newest first)
-  const sortedNPSHistory = [...client.npsHistory].sort((a, b) => {
-    if (a.year !== b.year) return b.year - a.year;
-    return b.month - a.month;
-  });
+  const sortedNPSHistory = [...(client.npsHistory || [])].sort((a, b) => 
+    new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -64,12 +64,12 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onD
                 <Building2 className="h-6 w-6" />
               </div>
               <div>
-                <DialogTitle className="text-xl">{client.company}</DialogTitle>
-                <p className="text-sm text-muted-foreground">{client.segment}</p>
+                <DialogTitle className="text-xl">{client.name}</DialogTitle>
+                <p className="text-sm text-muted-foreground">{client.company || client.segment || "Sem empresa"}</p>
               </div>
             </div>
-            <Badge className={statusConfig.className}>
-              {statusConfig.label}
+            <Badge className={statusConfig?.className}>
+              {statusConfig?.label || client.status}
             </Badge>
           </div>
         </DialogHeader>
@@ -79,28 +79,32 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onD
             {/* Contact Info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Contato</p>
-                <p className="text-sm font-medium">{client.contact}</p>
+                <p className="text-xs text-muted-foreground">Segmento</p>
+                <p className="text-sm font-medium">{client.segment || "-"}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Email</p>
                 <div className="flex items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                  <p className="text-sm">{client.email}</p>
+                  <p className="text-sm">{client.email || "-"}</p>
                 </div>
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Telefone</p>
                 <div className="flex items-center gap-1.5">
                   <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                  <p className="text-sm">{client.phone}</p>
+                  <p className="text-sm">{client.phone || "-"}</p>
                 </div>
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Cliente desde</p>
                 <div className="flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                  <p className="text-sm">{new Date(client.startDate).toLocaleDateString("pt-BR")}</p>
+                  <p className="text-sm">
+                    {client.contract_start 
+                      ? new Date(client.contract_start).toLocaleDateString("pt-BR") 
+                      : "-"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -108,17 +112,12 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onD
             <Separator />
 
             {/* Financial Info */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="stat-card">
-                <div className="flex items-center gap-2 mb-1">
-                  <Package className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground">Pacote</p>
-                </div>
-                <p className="text-lg font-semibold">{client.package}</p>
-              </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="stat-card">
                 <p className="text-xs text-muted-foreground mb-1">Valor Mensal</p>
-                <p className="text-lg font-semibold text-success">R$ {client.monthlyValue.toLocaleString('pt-BR')}</p>
+                <p className="text-lg font-semibold text-success">
+                  R$ {(client.monthly_value || 0).toLocaleString('pt-BR')}
+                </p>
               </div>
               <div className="stat-card">
                 <div className="flex items-center gap-2 mb-1">
@@ -157,32 +156,35 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onD
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {sortedNPSHistory.map((record) => (
-                    <div
-                      key={record.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50 group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <NPSScoreBadge score={record.score} />
-                        <div>
-                          <p className="text-sm font-medium">
-                            {MONTHS[record.month - 1]} {record.year}
-                          </p>
-                          {record.notes && (
-                            <p className="text-xs text-muted-foreground">{record.notes}</p>
-                          )}
+                  {sortedNPSHistory.map((record) => {
+                    const recordDate = new Date(record.recorded_at);
+                    return (
+                      <div
+                        key={record.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50 group"
+                      >
+                        <div className="flex items-center gap-3">
+                          {record.score !== null && <NPSScoreBadge score={record.score} />}
+                          <div>
+                            <p className="text-sm font-medium">
+                              {MONTHS[recordDate.getMonth()]} {recordDate.getFullYear()}
+                            </p>
+                            {record.feedback && (
+                              <p className="text-xs text-muted-foreground">{record.feedback}</p>
+                            )}
+                          </div>
                         </div>
+                        {canDelete && (
+                          <button
+                            onClick={() => onDeleteNPSRecord(record.id)}
+                            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
-                      {canDelete && (
-                        <button
-                          onClick={() => onDeleteNPSRecord(record.id)}
-                          className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -209,7 +211,7 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onD
               Excluir Cliente
             </Button>
           ) : (
-            <div /> // Placeholder para manter layout
+            <div />
           )}
           <Button onClick={onEdit} className="gap-1.5">
             <Edit className="h-4 w-4" />

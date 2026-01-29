@@ -7,18 +7,19 @@ import { toast } from "sonner";
 
 // Helper function to calculate average NPS from history
 export function calculateClientNPS(npsHistory: NPSRecord[]): number {
-  if (npsHistory.length === 0) return 0;
-  const sum = npsHistory.reduce((acc, record) => acc + record.score, 0);
-  return Math.round((sum / npsHistory.length) * 10) / 10;
+  if (!npsHistory || npsHistory.length === 0) return 0;
+  const validScores = npsHistory.filter(r => r.score !== null);
+  if (validScores.length === 0) return 0;
+  const sum = validScores.reduce((acc, record) => acc + (record.score || 0), 0);
+  return Math.round((sum / validScores.length) * 10) / 10;
 }
 
 // Helper function to get the latest NPS score
 export function getLatestNPS(npsHistory: NPSRecord[]): number | null {
-  if (npsHistory.length === 0) return null;
-  const sorted = [...npsHistory].sort((a, b) => {
-    if (a.year !== b.year) return b.year - a.year;
-    return b.month - a.month;
-  });
+  if (!npsHistory || npsHistory.length === 0) return null;
+  const sorted = [...npsHistory].sort((a, b) => 
+    new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
+  );
   return sorted[0].score;
 }
 
@@ -28,9 +29,8 @@ export function useClients() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
 
-  // Carregar clientes do banco - COM FAIL-SAFE
+  // Carregar clientes do banco
   const loadClients = useCallback(async () => {
-    // Se não tem empresa selecionada, retorna vazio imediatamente
     if (!currentCompany) {
       setClients([]);
       setIsLoading(false);
@@ -49,6 +49,7 @@ export function useClients() {
 
       if (clientsError) {
         console.error("Erro ao carregar clientes:", clientsError);
+        toast.error("Erro ao carregar clientes.");
         return;
       }
 
@@ -64,42 +65,44 @@ export function useClients() {
 
         // Agrupar NPS por cliente
         (npsData || []).forEach(nps => {
+          if (!nps.client_id) return;
           if (!npsRecords[nps.client_id]) {
             npsRecords[nps.client_id] = [];
           }
           npsRecords[nps.client_id].push({
             id: nps.id,
             client_id: nps.client_id,
-            month: nps.month,
-            year: nps.year,
+            space_id: nps.space_id,
             score: nps.score,
-            notes: nps.notes || "",
-            recordedAt: nps.recorded_at,
+            feedback: nps.feedback,
+            recorded_at: nps.recorded_at,
+            created_by: nps.created_by,
           });
         });
       }
 
       const mappedClients: Client[] = (clientsData || []).map(c => ({
         id: c.id,
-        project_id: "default",
-        user_id: c.user_id,
-        company_id: c.space_id,
+        space_id: c.space_id,
+        name: c.name,
         company: c.company,
-        contact: c.contact,
-        email: c.email || "",
-        phone: c.phone || "",
-        segment: c.segment || "",
-        package: c.package || "",
-        monthlyValue: c.monthly_value || 0,
+        email: c.email,
+        phone: c.phone,
+        segment: c.segment,
         status: c.status as ClientStatus,
+        monthly_value: c.monthly_value,
+        contract_start: c.contract_start,
+        notes: c.notes,
+        created_by: c.created_by,
+        created_at: c.created_at,
+        updated_at: c.updated_at,
         npsHistory: npsRecords[c.id] || [],
-        startDate: c.start_date || "",
-        notes: c.notes || "",
       }));
 
       setClients(mappedClients);
     } catch (error) {
       console.error("Erro ao carregar clientes:", error);
+      toast.error("Erro inesperado ao carregar clientes.");
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +113,7 @@ export function useClients() {
   }, [loadClients]);
 
   const addClient = useCallback(async (
-    data: Omit<Client, "id" | "project_id" | "user_id" | "company_id" | "npsHistory">
+    data: Omit<Client, "id" | "created_at" | "updated_at" | "npsHistory">
   ): Promise<Client | null> => {
     if (!user?.id) {
       toast.error("Você precisa estar logado para criar um cliente.");
@@ -127,17 +130,16 @@ export function useClients() {
         .from("clients")
         .insert({
           space_id: currentCompany,
-          user_id: user.id,
-          company: data.company,
-          contact: data.contact,
-          email: data.email,
-          phone: data.phone,
-          segment: data.segment,
-          package: data.package,
-          monthly_value: data.monthlyValue,
-          status: data.status,
-          start_date: data.startDate,
-          notes: data.notes,
+          name: data.name,
+          company: data.company || null,
+          email: data.email || null,
+          phone: data.phone || null,
+          segment: data.segment || null,
+          status: data.status || 'ativo',
+          monthly_value: data.monthly_value || null,
+          contract_start: data.contract_start || null,
+          notes: data.notes || null,
+          created_by: user.id,
         })
         .select()
         .single();
@@ -149,21 +151,9 @@ export function useClients() {
       }
 
       const mappedClient: Client = {
-        id: newClient.id,
-        project_id: "default",
-        user_id: newClient.user_id,
-        company_id: newClient.space_id,
-        company: newClient.company,
-        contact: newClient.contact,
-        email: newClient.email || "",
-        phone: newClient.phone || "",
-        segment: newClient.segment || "",
-        package: newClient.package || "",
-        monthlyValue: newClient.monthly_value || 0,
+        ...newClient,
         status: newClient.status as ClientStatus,
         npsHistory: [],
-        startDate: newClient.start_date || "",
-        notes: newClient.notes || "",
       };
 
       setClients(prev => [mappedClient, ...prev]);
@@ -178,19 +168,18 @@ export function useClients() {
 
   const updateClient = useCallback(async (
     id: string, 
-    data: Partial<Omit<Client, "id" | "project_id" | "user_id" | "company_id">>
+    data: Partial<Omit<Client, "id" | "created_at" | "updated_at">>
   ) => {
     const updateData: Record<string, unknown> = {};
     
+    if (data.name !== undefined) updateData.name = data.name;
     if (data.company !== undefined) updateData.company = data.company;
-    if (data.contact !== undefined) updateData.contact = data.contact;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.segment !== undefined) updateData.segment = data.segment;
-    if (data.package !== undefined) updateData.package = data.package;
-    if (data.monthlyValue !== undefined) updateData.monthly_value = data.monthlyValue;
     if (data.status !== undefined) updateData.status = data.status;
-    if (data.startDate !== undefined) updateData.start_date = data.startDate;
+    if (data.monthly_value !== undefined) updateData.monthly_value = data.monthly_value;
+    if (data.contract_start !== undefined) updateData.contract_start = data.contract_start;
     if (data.notes !== undefined) updateData.notes = data.notes;
 
     const { error } = await supabase
@@ -228,76 +217,56 @@ export function useClients() {
 
   const addNPSRecord = useCallback(async (
     clientId: string, 
-    record: Omit<NPSRecord, "id" | "client_id">
+    record: { score: number; feedback?: string }
   ) => {
-    // Verificar se já existe registro para esse mês/ano
-    const { data: existing } = await supabase
-      .from("nps_records")
-      .select("id")
-      .eq("client_id", clientId)
-      .eq("month", record.month)
-      .eq("year", record.year)
-      .maybeSingle();
+    if (!currentCompany || !user?.id) {
+      toast.error("Erro de autenticação.");
+      return;
+    }
 
-    if (existing) {
-      // Atualizar existente
-      const { error } = await supabase
-        .from("nps_records")
-        .update({ 
-          score: record.score, 
-          notes: record.notes 
-        })
-        .eq("id", existing.id);
-
-      if (error) {
-        console.error("Erro ao atualizar NPS:", error);
-        return;
-      }
-
-      setClients(prev => prev.map(client => {
-        if (client.id !== clientId) return client;
-        const newHistory = client.npsHistory.map(r => 
-          r.month === record.month && r.year === record.year
-            ? { ...r, score: record.score, notes: record.notes }
-            : r
-        );
-        return { ...client, npsHistory: newHistory };
-      }));
-    } else {
-      // Inserir novo
+    try {
       const { data: newRecord, error } = await supabase
         .from("nps_records")
         .insert({
           client_id: clientId,
-          month: record.month,
-          year: record.year,
+          space_id: currentCompany,
           score: record.score,
-          notes: record.notes,
+          feedback: record.feedback || null,
+          created_by: user.id,
         })
         .select()
         .single();
 
       if (error) {
         console.error("Erro ao criar NPS:", error);
+        toast.error("Erro ao registrar NPS.");
         return;
       }
 
       const mappedRecord: NPSRecord = {
         id: newRecord.id,
         client_id: clientId,
-        month: newRecord.month,
-        year: newRecord.year,
+        space_id: newRecord.space_id,
         score: newRecord.score,
-        notes: newRecord.notes || "",
-        recordedAt: newRecord.recorded_at,
+        feedback: newRecord.feedback,
+        recorded_at: newRecord.recorded_at,
+        created_by: newRecord.created_by,
       };
 
       setClients(prev => prev.map(client => {
         if (client.id !== clientId) return client;
-        return { ...client, npsHistory: [...client.npsHistory, mappedRecord] };
+        return { 
+          ...client, 
+          npsHistory: [...(client.npsHistory || []), mappedRecord] 
+        };
       }));
+      
+      toast.success("NPS registrado com sucesso!");
+    } catch (error) {
+      console.error("Erro inesperado ao criar NPS:", error);
+      toast.error("Erro inesperado.");
     }
-  }, []);
+  }, [currentCompany, user?.id]);
 
   const deleteNPSRecord = useCallback(async (clientId: string, recordId: string) => {
     const { error } = await supabase
@@ -307,6 +276,7 @@ export function useClients() {
 
     if (error) {
       console.error("Erro ao excluir NPS:", error);
+      toast.error("Erro ao excluir NPS.");
       return;
     }
 
@@ -314,26 +284,30 @@ export function useClients() {
       if (client.id !== clientId) return client;
       return {
         ...client,
-        npsHistory: client.npsHistory.filter(r => r.id !== recordId),
+        npsHistory: (client.npsHistory || []).filter(r => r.id !== recordId),
       };
     }));
+    
+    toast.success("NPS removido com sucesso!");
   }, []);
 
   const getStats = useCallback(() => {
-    const activeClients = clients.filter(c => c.status === "active");
-    const totalMRR = activeClients.reduce((sum, c) => sum + c.monthlyValue, 0);
+    const activeClients = clients.filter(c => c.status === "ativo");
+    const totalMRR = activeClients.reduce((sum, c) => sum + (c.monthly_value || 0), 0);
     const avgTicket = activeClients.length > 0 
       ? Math.round(totalMRR / activeClients.length) 
       : 0;
     
-    const allNPSScores = clients.flatMap(c => c.npsHistory.map(r => r.score));
+    const allNPSScores = clients.flatMap(c => 
+      (c.npsHistory || []).filter(r => r.score !== null).map(r => r.score as number)
+    );
     const avgNPS = allNPSScores.length > 0 
       ? Math.round((allNPSScores.reduce((sum, s) => sum + s, 0) / allNPSScores.length) * 10) / 10 
       : 0;
 
     return {
       activeCount: activeClients.length,
-      inactiveCount: clients.filter(c => c.status === "inactive").length,
+      inactiveCount: clients.filter(c => c.status === "inativo").length,
       churnCount: clients.filter(c => c.status === "churn").length,
       totalMRR,
       avgTicket,
@@ -344,8 +318,8 @@ export function useClients() {
   const clientsWithNPSInfo = useMemo(() => {
     return clients.map(client => ({
       ...client,
-      latestNPS: getLatestNPS(client.npsHistory),
-      avgNPS: calculateClientNPS(client.npsHistory),
+      latestNPS: getLatestNPS(client.npsHistory || []),
+      avgNPS: calculateClientNPS(client.npsHistory || []),
     }));
   }, [clients]);
 

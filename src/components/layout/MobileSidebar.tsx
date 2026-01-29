@@ -26,7 +26,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { STORAGE_KEYS } from "@/lib/constants";
+// Storage keys for cleanup on logout
+const STORAGE_KEYS = {
+  LEADS: "conto-leads",
+  CLIENTS: "conto-clients",
+  OBJECTIVES: "conto-objectives",
+};
 import { useState } from "react";
 
 interface NavItem {

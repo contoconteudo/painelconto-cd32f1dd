@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useLeads } from "./useLeads";
 import { useClients } from "./useClients";
 import { useObjectives } from "./useObjectives";
-import { AUTOMATION_CONFIG, NPS_CONFIG } from "@/lib/constants";
+import { NPS_CONFIG } from "@/lib/constants";
 
 export interface AppNotification {
   id: string;
@@ -12,6 +12,9 @@ export interface AppNotification {
   category: "leads" | "clients" | "objectives" | "goals";
 }
 
+const STALE_DAYS = 7;
+const DEADLINE_WARNING_DAYS = 30;
+
 export function useNotifications() {
   const { leads } = useLeads();
   const { clients } = useClients();
@@ -20,60 +23,43 @@ export function useNotifications() {
   const notifications = useMemo(() => {
     const alerts: AppNotification[] = [];
 
-    // Check for cold leads that haven't been contacted recently
-    const coldLeads = leads.filter(
-      (lead) => lead.temperature === "cold" && lead.stage !== "won" && lead.stage !== "lost"
-    );
-    if (coldLeads.length > 0) {
-      alerts.push({
-        id: "cold-leads",
-        type: "warning",
-        title: "Leads Esfriando",
-        message: `${coldLeads.length} lead(s) marcado(s) como frio(s). Considere fazer follow-up.`,
-        category: "leads",
-      });
-    }
-
-    // Check for leads in negotiation stage for too long
+    // Check for leads in negotiation status for too long
     const staleNegotiations = leads.filter((lead) => {
-      if (lead.stage !== "negotiation") return false;
-      const daysSinceChange = Math.floor(
-        (Date.now() - new Date(lead.stageChangedAt).getTime()) / (1000 * 60 * 60 * 24)
+      if (lead.status !== "negociacao") return false;
+      const daysSinceUpdate = Math.floor(
+        (Date.now() - new Date(lead.updated_at).getTime()) / (1000 * 60 * 60 * 24)
       );
-      return daysSinceChange > AUTOMATION_CONFIG.STALE_NEGOTIATION_DAYS;
+      return daysSinceUpdate > STALE_DAYS;
     });
     if (staleNegotiations.length > 0) {
       alerts.push({
         id: "stale-negotiations",
         type: "warning",
         title: "Negociações Paradas",
-        message: `${staleNegotiations.length} lead(s) em negociação há mais de ${AUTOMATION_CONFIG.STALE_NEGOTIATION_DAYS} dias.`,
+        message: `${staleNegotiations.length} lead(s) em negociação há mais de ${STALE_DAYS} dias.`,
         category: "leads",
       });
     }
 
-    // Check for hot leads that need immediate attention
-    const hotLeads = leads.filter(
-      (lead) => lead.temperature === "hot" && lead.stage !== "won" && lead.stage !== "lost"
-    );
-    if (hotLeads.length > 0) {
+    // Check for new leads that need action
+    const newLeads = leads.filter((lead) => lead.status === "novo");
+    if (newLeads.length > 0) {
       alerts.push({
-        id: "hot-leads",
+        id: "new-leads",
         type: "info",
-        title: "Leads Quentes",
-        message: `${hotLeads.length} lead(s) quente(s) aguardando ação.`,
+        title: "Novos Leads",
+        message: `${newLeads.length} lead(s) novo(s) aguardando ação.`,
         category: "leads",
       });
     }
 
     // Check for clients with low NPS (latest score)
     const lowNpsClients = clients.filter((client) => {
-      if (client.status !== "active" || client.npsHistory.length === 0) return false;
-      const latestNPS = [...client.npsHistory].sort((a, b) => {
-        if (a.year !== b.year) return b.year - a.year;
-        return b.month - a.month;
-      })[0];
-      return latestNPS.score < NPS_CONFIG.PASSIVE_MIN;
+      if (client.status !== "ativo" || !client.npsHistory || client.npsHistory.length === 0) return false;
+      const latestNPS = [...client.npsHistory].sort((a, b) => 
+        new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
+      )[0];
+      return latestNPS.score !== null && latestNPS.score < NPS_CONFIG.PASSIVE_MIN;
     });
     if (lowNpsClients.length > 0) {
       alerts.push({
@@ -86,7 +72,7 @@ export function useNotifications() {
     }
 
     // Check for clients at churn risk
-    const churnRiskClients = clients.filter((client) => client.status === "inactive");
+    const churnRiskClients = clients.filter((client) => client.status === "inativo");
     if (churnRiskClients.length > 0) {
       alerts.push({
         id: "churn-risk",
@@ -99,13 +85,13 @@ export function useNotifications() {
 
     // Check for objectives at risk or behind
     const atRiskObjectives = objectives.filter(
-      (obj) => obj.status === "at_risk" || obj.status === "behind"
+      (obj) => obj.status === "atrasado"
     );
     if (atRiskObjectives.length > 0) {
       alerts.push({
         id: "objectives-risk",
         type: "warning",
-        title: "Objetivos em Risco",
+        title: "Objetivos Atrasados",
         message: `${atRiskObjectives.length} objetivo(s) precisam de atenção.`,
         category: "objectives",
       });
@@ -113,17 +99,18 @@ export function useNotifications() {
 
     // Check objectives deadline approaching
     const upcomingDeadlines = objectives.filter((obj) => {
+      if (!obj.end_date) return false;
       const daysToDeadline = Math.floor(
-        (new Date(obj.deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        (new Date(obj.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
       );
-      return daysToDeadline > 0 && daysToDeadline <= AUTOMATION_CONFIG.DEADLINE_WARNING_DAYS && obj.currentValue < obj.targetValue;
+      return daysToDeadline > 0 && daysToDeadline <= DEADLINE_WARNING_DAYS && obj.current_value < (obj.target_value || 0);
     });
     if (upcomingDeadlines.length > 0) {
       alerts.push({
         id: "deadline-approaching",
         type: "info",
         title: "Prazos Próximos",
-        message: `${upcomingDeadlines.length} objetivo(s) com prazo em até ${AUTOMATION_CONFIG.DEADLINE_WARNING_DAYS} dias.`,
+        message: `${upcomingDeadlines.length} objetivo(s) com prazo em até ${DEADLINE_WARNING_DAYS} dias.`,
         category: "objectives",
       });
     }

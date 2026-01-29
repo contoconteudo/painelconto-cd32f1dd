@@ -1,8 +1,6 @@
 /**
  * Tipos centralizados do sistema.
- * 
- * NOTA: AppRole e ModulePermission estão definidos em @/data/mockData.ts
- * para facilitar a transição para o backend.
+ * Alinhados com o schema real do banco de dados Supabase.
  */
 
 export interface Project {
@@ -13,86 +11,124 @@ export interface Project {
   updated_at: string;
 }
 
-// Extracted types for external use
-export type LeadTemperature = 'hot' | 'warm' | 'cold';
-export type LeadStage = 'new' | 'contact' | 'meeting_scheduled' | 'meeting_done' | 'proposal' | 'followup' | 'negotiation' | 'won' | 'lost';
-export type ClientStatus = 'active' | 'inactive' | 'churn';
-export type ObjectiveValueType = 'financial' | 'quantity' | 'percentage';
-export type ObjectiveStatus = 'on_track' | 'at_risk' | 'behind';
-export type CommercialDataSource = 'crm' | 'clients';
+// Status de cliente - valores em português conforme banco
+export type ClientStatus = 'ativo' | 'inativo' | 'churn';
 
-// Existing types remain the same but will be updated to include project_id
-export interface Lead {
-  id: string;
-  project_id: string;
-  user_id: string;
-  company_id: string; // Espaço ao qual o lead pertence
-  name: string;
-  company: string;
-  email: string;
-  phone: string;
-  value: number;
-  temperature: LeadTemperature;
-  origin: string;
-  stage: LeadStage;
-  lastContact: string;
-  notes: string;
-  createdAt: string;
-  stageChangedAt: string;
-}
+// Status de lead - valores em português conforme banco
+export type LeadStatus = 'novo' | 'contato' | 'reuniao_agendada' | 'reuniao_feita' | 'proposta' | 'negociacao' | 'ganho' | 'perdido';
 
+// Status de objetivo - valores em português conforme banco
+export type ObjectiveStatus = 'em_andamento' | 'concluido' | 'atrasado' | 'pausado';
+
+// Client - alinhado com tabela clients do Supabase
 export interface Client {
   id: string;
-  project_id: string;
-  user_id: string;
-  company_id: string; // Espaço ao qual o cliente pertence
-  company: string;
-  contact: string;
-  email: string;
-  phone: string;
-  segment: string;
-  package: string;
-  monthlyValue: number;
+  space_id: string;
+  name: string; // Nome do contato principal
+  company: string | null; // Empresa (opcional)
+  email: string | null;
+  phone: string | null;
+  segment: string | null;
   status: ClientStatus;
-  npsHistory: NPSRecord[];
-  startDate: string;
-  notes: string;
+  monthly_value: number | null;
+  contract_start: string | null; // Data de início do contrato
+  notes: string | null;
+  created_by: string | null; // user_id de quem criou
+  created_at: string;
+  updated_at: string;
+  // Campos calculados no frontend
+  npsHistory?: NPSRecord[];
 }
 
+// Lead - alinhado com tabela leads do Supabase
+export interface Lead {
+  id: string;
+  space_id: string;
+  name: string;
+  company: string | null;
+  email: string | null;
+  phone: string | null;
+  status: LeadStatus;
+  source: string | null; // Origem do lead
+  value: number | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// NPS Record - alinhado com tabela nps_records do Supabase
 export interface NPSRecord {
   id: string;
-  client_id: string;
-  month: number;
-  year: number;
-  score: number;
-  notes: string;
-  recordedAt: string;
+  client_id: string | null;
+  space_id: string;
+  score: number | null;
+  feedback: string | null; // Era "notes"
+  recorded_at: string;
+  created_by: string | null;
 }
 
+// Objective - alinhado com tabela objectives do Supabase
 export interface Objective {
   id: string;
-  project_id: string;
-  user_id: string;
-  company_id: string; // Espaço ao qual o objetivo pertence
-  name: string;
-  description: string;
-  valueType: ObjectiveValueType;
-  targetValue: number;
-  currentValue: number;
-  deadline: string;
+  space_id: string;
+  title: string; // Era "name"
+  description: string | null;
+  category: string | null; // Era "valueType"
+  target_value: number | null;
+  current_value: number;
+  unit: string; // Unidade de medida (%, R$, etc.)
+  start_date: string | null;
+  end_date: string | null; // Era "deadline"
   status: ObjectiveStatus;
-  createdAt: string;
-  progressLogs: ProgressLog[];
-  isCommercial: boolean;
-  dataSources: CommercialDataSource[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Campos calculados no frontend
+  progressLogs?: ProgressLog[];
 }
 
+// Progress Log - alinhado com tabela progress_logs do Supabase
 export interface ProgressLog {
   id: string;
-  objective_id: string;
-  month: number;
-  year: number;
+  objective_id: string | null;
   value: number;
-  description: string;
-  date: string;
+  notes: string | null; // Era "description"
+  logged_at: string; // Era "date"
+  created_by: string | null;
 }
+
+// Tipos legados para compatibilidade temporária durante migração
+// @deprecated - usar LeadStatus
+export type LeadStage = LeadStatus;
+// @deprecated - usar ClientStatus com valores em português
+export type LegacyClientStatus = 'active' | 'inactive' | 'churn';
+
+// Constantes de mapeamento para compatibilidade de UI
+export const CLIENT_STATUS_MAP: Record<string, ClientStatus> = {
+  active: 'ativo',
+  inactive: 'inativo',
+  churn: 'churn',
+  ativo: 'ativo',
+  inativo: 'inativo',
+};
+
+export const LEAD_STATUS_MAP: Record<string, LeadStatus> = {
+  new: 'novo',
+  contact: 'contato',
+  meeting_scheduled: 'reuniao_agendada',
+  meeting_done: 'reuniao_feita',
+  proposal: 'proposta',
+  followup: 'negociacao',
+  negotiation: 'negociacao',
+  won: 'ganho',
+  lost: 'perdido',
+  novo: 'novo',
+  contato: 'contato',
+  reuniao_agendada: 'reuniao_agendada',
+  reuniao_feita: 'reuniao_feita',
+  proposta: 'proposta',
+  negociacao: 'negociacao',
+  ganho: 'ganho',
+  perdido: 'perdido',
+};
