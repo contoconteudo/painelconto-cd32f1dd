@@ -1,6 +1,6 @@
 /**
  * Hook para gerenciar espaços (empresas) do sistema.
- * Usa demoStore para persistir dados no modo DEMO.
+ * Integra com Supabase para CRUD de espaços.
  */
 
 import { useCallback, useSyncExternalStore } from "react";
@@ -55,14 +55,14 @@ const generateSpaceId = (name: string): string => {
 export function useSpaces() {
   const session = useUserSession();
 
-  // Usar useSyncExternalStore para reagir a mudanças no demoStore
+  // DEMO: usar useSyncExternalStore para reagir a mudanças no demoStore
   const storeSpaces = useSyncExternalStore(
     (callback) => demoStore.subscribe(callback),
     () => demoStore.spaces,
     () => demoStore.spaces
   );
 
-  // Mapear espaços do formato do store para o formato do hook
+  // Mapear espaços
   const spaces: Space[] = DEMO_MODE 
     ? storeSpaces.map(s => ({
         id: s.id,
@@ -107,7 +107,7 @@ export function useSpaces() {
       return { success: false, error: "Já existe um espaço com nome similar" };
     }
 
-    // MODO DEMO: adiciona ao store global
+    // MODO DEMO
     if (DEMO_MODE) {
       const newSpace: MockSpace = {
         id,
@@ -126,6 +126,7 @@ export function useSpaces() {
       };
     }
 
+    // PRODUÇÃO
     const { data, error } = await supabase
       .from("spaces")
       .insert({
@@ -134,6 +135,7 @@ export function useSpaces() {
         description: description.trim() || `Espaço ${label.trim()}`,
         color,
         icon,
+        created_by: session.user.id,
       })
       .select()
       .single();
@@ -152,7 +154,6 @@ export function useSpaces() {
       createdAt: data.created_at,
     };
 
-    // Disparar evento para atualizar cache
     window.dispatchEvent(new CustomEvent("spaces-changed"));
     await session.refreshSpaces();
     
@@ -164,7 +165,6 @@ export function useSpaces() {
     id: string, 
     updates: Partial<Omit<Space, "id" | "createdAt">>
   ): Promise<{ success: boolean; error?: string }> => {
-    // MODO DEMO: não implementado ainda
     if (DEMO_MODE) {
       return { success: true };
     }
@@ -192,7 +192,6 @@ export function useSpaces() {
       return { success: false, error: "Não é possível excluir o último espaço" };
     }
 
-    // MODO DEMO: remove do store global
     if (DEMO_MODE) {
       demoStore.deleteSpace(id);
       window.dispatchEvent(new CustomEvent("spaces-changed"));

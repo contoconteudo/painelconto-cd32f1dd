@@ -1,6 +1,11 @@
-import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from "react";
+/**
+ * Hook para gerenciar clientes.
+ * Integra com Supabase para CRUD de clientes e NPS.
+ */
+
+import { useState, useCallback, useMemo, useSyncExternalStore } from "react";
 import { Client, NPSRecord, ClientStatus } from "@/types";
-// import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
+import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
@@ -27,9 +32,10 @@ export function getLatestNPS(npsHistory: NPSRecord[]): number | null {
 export function useClients() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Usar useSyncExternalStore para reagir a mudanças no demoStore
-  const allClients = useSyncExternalStore(
+  // DEMO: usar useSyncExternalStore para reagir a mudanças no demoStore
+  const demoClients = useSyncExternalStore(
     (callback) => demoStore.subscribe(callback),
     () => demoStore.clients,
     () => demoStore.clients
@@ -37,13 +43,13 @@ export function useClients() {
 
   // Filtrar clientes pelo espaço atual
   const clients = useMemo(() => {
-    if (!DEMO_MODE) return [];
-    return currentCompany 
-      ? allClients.filter(c => c.space_id === currentCompany)
-      : allClients;
-  }, [allClients, currentCompany]);
-
-  const [isLoading, setIsLoading] = useState(false);
+    if (DEMO_MODE) {
+      return currentCompany 
+        ? demoClients.filter(c => c.space_id === currentCompany)
+        : demoClients;
+    }
+    return [];
+  }, [demoClients, currentCompany]);
 
   const addClient = useCallback(async (
     data: Omit<Client, "id" | "created_at" | "updated_at" | "npsHistory">
@@ -52,18 +58,38 @@ export function useClients() {
       const newClient: Client = {
         ...data,
         id: `client-${Date.now()}`,
-        space_id: data.space_id || currentCompany || "conto",
+        space_id: data.space_id || currentCompany || "",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         npsHistory: [],
       };
       demoStore.addClient(newClient);
-      toast.success("Cliente criado com sucesso! (DEMO)");
+      toast.success("Cliente criado com sucesso!");
       return newClient;
     }
-    toast.error("Modo produção desativado.");
-    return null;
-  }, [currentCompany]);
+
+    setIsLoading(true);
+    try {
+      const { data: newClient, error } = await supabase
+        .from("clients")
+        .insert({
+          ...data,
+          space_id: data.space_id || currentCompany,
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      toast.success("Cliente criado com sucesso!");
+      return { ...newClient, npsHistory: [] } as Client;
+    } catch (error: any) {
+      toast.error("Erro ao criar cliente: " + error.message);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentCompany, user?.id]);
 
   const updateClient = useCallback(async (
     id: string, 
@@ -71,16 +97,46 @@ export function useClients() {
   ) => {
     if (DEMO_MODE) {
       demoStore.updateClient(id, { ...data, updated_at: new Date().toISOString() });
-      toast.success("Cliente atualizado! (DEMO)");
+      toast.success("Cliente atualizado!");
       return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from("clients")
+        .update({ ...data, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (error) throw error;
+      toast.success("Cliente atualizado!");
+    } catch (error: any) {
+      toast.error("Erro ao atualizar cliente: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
   const deleteClient = useCallback(async (id: string) => {
     if (DEMO_MODE) {
       demoStore.deleteClient(id);
-      toast.success("Cliente excluído! (DEMO)");
+      toast.success("Cliente excluído!");
       return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from("clients")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      toast.success("Cliente excluído!");
+    } catch (error: any) {
+      toast.error("Erro ao excluir cliente: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -88,51 +144,79 @@ export function useClients() {
     clientId: string, 
     record: { score: number; feedback?: string; month?: number; year?: number }
   ) => {
+    const month = record.month ?? new Date().getMonth();
+    const year = record.year ?? new Date().getFullYear();
+    const recordedDate = new Date(year, month, 1);
+
     if (DEMO_MODE) {
-      // Usar mês/ano fornecido ou atual
-      const month = record.month ?? new Date().getMonth();
-      const year = record.year ?? new Date().getFullYear();
-      
-      // Criar data do primeiro dia do mês selecionado
-      const recordedDate = new Date(year, month, 1);
-      
       const newRecord: NPSRecord = {
         id: `nps-${Date.now()}`,
         client_id: clientId,
-        space_id: currentCompany || "conto",
+        space_id: currentCompany || "",
         score: record.score,
         feedback: record.feedback || null,
         recorded_at: recordedDate.toISOString(),
-        created_by: user?.id || "demo-admin-001",
+        created_by: user?.id || "",
       };
 
-      // Encontrar o cliente e atualizar seu npsHistory
-      const client = allClients.find(c => c.id === clientId);
+      const client = demoClients.find(c => c.id === clientId);
       if (client) {
         demoStore.updateClient(clientId, {
           npsHistory: [...(client.npsHistory || []), newRecord],
         });
       }
       
-      toast.success("NPS registrado! (DEMO)");
+      toast.success("NPS registrado!");
       return newRecord;
     }
 
-    return null;
-  }, [currentCompany, user?.id, allClients]);
+    try {
+      const { data, error } = await supabase
+        .from("nps_records")
+        .insert({
+          client_id: clientId,
+          space_id: currentCompany,
+          score: record.score,
+          feedback: record.feedback,
+          recorded_at: recordedDate.toISOString(),
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      toast.success("NPS registrado!");
+      return data as NPSRecord;
+    } catch (error: any) {
+      toast.error("Erro ao registrar NPS: " + error.message);
+      return null;
+    }
+  }, [currentCompany, user?.id, demoClients]);
 
   const deleteNPSRecord = useCallback(async (clientId: string, recordId: string) => {
     if (DEMO_MODE) {
-      const client = allClients.find(c => c.id === clientId);
+      const client = demoClients.find(c => c.id === clientId);
       if (client) {
         demoStore.updateClient(clientId, {
           npsHistory: (client.npsHistory || []).filter(r => r.id !== recordId),
         });
       }
-      toast.success("NPS removido! (DEMO)");
+      toast.success("NPS removido!");
       return;
     }
-  }, [allClients]);
+
+    try {
+      const { error } = await supabase
+        .from("nps_records")
+        .delete()
+        .eq("id", recordId);
+
+      if (error) throw error;
+      toast.success("NPS removido!");
+    } catch (error: any) {
+      toast.error("Erro ao remover NPS: " + error.message);
+    }
+  }, [demoClients]);
 
   const getStats = useCallback(() => {
     const activeClients = clients.filter(c => c.status === "ativo");

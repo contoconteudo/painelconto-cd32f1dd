@@ -1,12 +1,11 @@
 /**
- * Hook centralizado para sessão do usuário com cache via React Query.
- * 
- * MODO DEMO: Retorna usuário admin simulado sem acessar Supabase.
+ * Hook centralizado para sessão do usuário.
+ * Gerencia autenticação, roles, permissões e espaços via Supabase.
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-// import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
+import { supabase } from "@/integrations/supabase/client";
 import { DEMO_MODE, MOCK_ADMIN_USER, demoStore } from "@/data/mockData";
 
 export type AppRole = "admin" | "gestor" | "comercial" | "analista";
@@ -63,15 +62,59 @@ function getDemoSession(): UserSession {
   };
 }
 
-// Espaços DEMO - lidos do store
-function getDemoSpaces(): NormalizedSpace[] {
-  return demoStore.spaces.map(s => ({
-    id: s.id,
-    label: s.label,
-    description: s.description,
-    color: s.color,
-    icon: s.icon,
-  }));
+// Buscar sessão real do Supabase
+async function fetchRealSession(): Promise<UserSession> {
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session?.user) {
+    return {
+      user: null,
+      role: null,
+      modules: [],
+      spaces: [],
+      isAdmin: false,
+      permissionsState: "ok",
+    };
+  }
+
+  const userId = session.user.id;
+
+  // Buscar profile
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email, full_name")
+    .eq("id", userId)
+    .single();
+
+  // Buscar role
+  const { data: roleData } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .single();
+
+  // Buscar permissões
+  const { data: permissions } = await supabase
+    .from("user_permissions")
+    .select("modules, spaces")
+    .eq("user_id", userId)
+    .single();
+
+  const role = roleData?.role as AppRole | null;
+  const isAdmin = role === "admin";
+
+  return {
+    user: {
+      id: userId,
+      email: profile?.email || session.user.email || "",
+      fullName: profile?.full_name || session.user.email?.split("@")[0] || "",
+    },
+    role,
+    modules: isAdmin ? ALL_MODULES : (permissions?.modules as ModulePermission[] || []),
+    spaces: permissions?.spaces || [],
+    isAdmin,
+    permissionsState: "ok",
+  };
 }
 
 export function useUserSession() {
@@ -84,17 +127,14 @@ export function useUserSession() {
     () => demoStore.spaces
   );
 
-  // Query para sessão do usuário - MODO DEMO
+  // Query para sessão do usuário
   const sessionQuery = useQuery({
     queryKey: QUERY_KEY,
     queryFn: async (): Promise<UserSession> => {
-      // MODO DEMO: retorna sessão simulada imediatamente
       if (DEMO_MODE) {
         return getDemoSession();
       }
-
-      // Código real comentado para DEMO
-      return getDemoSession();
+      return fetchRealSession();
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -102,7 +142,44 @@ export function useUserSession() {
     retry: 0,
   });
 
-  // Espaços disponíveis - usando dados do store diretamente
+  // Query para espaços disponíveis
+  const spacesQuery = useQuery({
+    queryKey: SPACES_KEY,
+    queryFn: async (): Promise<NormalizedSpace[]> => {
+      if (DEMO_MODE) {
+        return demoSpaces.map(s => ({
+          id: s.id,
+          label: s.label,
+          description: s.description,
+          color: s.color,
+          icon: s.icon,
+        }));
+      }
+
+      const { data, error } = await supabase
+        .from("spaces")
+        .select("*")
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error("Erro ao carregar espaços:", error);
+        return [];
+      }
+
+      return (data || []).map(s => ({
+        id: s.id,
+        label: s.label,
+        description: s.description || "",
+        color: s.color || "bg-primary",
+        icon: s.icon || "Building",
+        created_at: s.created_at,
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    enabled: !DEMO_MODE || demoSpaces.length > 0,
+  });
+
   const availableSpaces: NormalizedSpace[] = DEMO_MODE
     ? demoSpaces.map(s => ({
         id: s.id,
@@ -111,17 +188,23 @@ export function useUserSession() {
         color: s.color,
         icon: s.icon,
       }))
-    : [];
+    : spacesQuery.data || [];
 
   const allowedSpaces = sessionQuery.data?.isAdmin
     ? availableSpaces.map((s) => s.id)
     : (sessionQuery.data?.spaces || []);
 
-  // Escutar mudanças de autenticação - DESATIVADO em DEMO
+  // Escutar mudanças de autenticação
   useEffect(() => {
     if (DEMO_MODE) return;
     
-    // Código real comentado para DEMO
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [queryClient]);
 
   // Escutar mudanças de espaços
@@ -161,7 +244,7 @@ export function useUserSession() {
   }, [queryClient]);
 
   const isLoading = sessionQuery.isLoading;
-  const spacesLoading = false; // No loading in DEMO mode
+  const spacesLoading = DEMO_MODE ? false : spacesQuery.isLoading;
 
   return {
     // Dados da sessão

@@ -1,350 +1,186 @@
-# Conto CMS - Documentação de Integração Backend v2.0
+# Guia de Integração Backend - Conto CMS
 
-> Última atualização: 29 de Janeiro de 2026
+Este documento contém tudo que o desenvolvedor backend precisa para conectar o sistema ao Supabase.
 
----
+## 📋 Checklist de Configuração
 
-## 📋 Visão Geral
+### 1. Executar Schema SQL
+Execute o arquivo `supabase/schema.sql` no SQL Editor do Supabase para criar:
+- Tipos (enums)
+- Tabelas
+- Funções de segurança
+- Políticas RLS
+- Triggers
 
-O **Conto CMS** é um sistema de gestão para agências, focado em:
-- **Planejamento Estratégico**: Objetivos e metas com tracking de progresso
-- **CRM**: Gestão de leads e pipeline comercial
-- **Clientes**: Gestão de carteira e monitoramento de NPS
-- **Multi-tenancy**: Suporte a múltiplas empresas (Espaços)
-
-### Stack
-
-- **Frontend**: React 18 + Vite + TypeScript + Tailwind CSS + Shadcn UI
-- **Backend**: Supabase (PostgreSQL + Auth + RLS)
-- **Autenticação**: Supabase Auth (email/senha)
-- **Segurança**: Row Level Security (RLS) com funções auxiliares
-
----
-
-## 🔧 Configuração
-
-### Credenciais (Novo Projeto - Janeiro 2026)
-
+### 2. Verificar DEMO_MODE
+No arquivo `src/data/mockData.ts`, verifique se está:
+```typescript
+export const DEMO_MODE = false;
 ```
-URL: https://jqthecutclccbakzadax.supabase.co
-Anon Key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpxdGhlY3V0Y2xjY2Jha3phZGF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2Nzc3MDksImV4cCI6MjA4NTI1MzcwOX0.qI8irQ1ldRmqMThdm9HW4c7dVIDJrNCPz09gWVDTJRM
-```
+> ⚠️ **Já está configurado como false** - pronto para produção!
 
-O cliente está configurado em `src/integrations/supabase/client.ts`.
-
-### Schema do Banco
-
-O schema completo está em `supabase/schema.sql`. Execute no SQL Editor do Supabase.
-
----
-
-## 🗄️ Estrutura de Dados
-
-### Tipos (Enums)
-
+### 3. Criar Primeiro Administrador
+1. Crie um usuário via Supabase Auth (Authentication > Users > Add user)
+2. Adicione o role admin na tabela `user_roles`:
 ```sql
--- Roles de usuário
-app_role: 'admin' | 'gestor' | 'comercial' | 'analista'
-
--- Status de lead (em português)
-lead_status: 'novo' | 'contato' | 'reuniao_agendada' | 'reuniao_feita' | 'proposta' | 'negociacao' | 'ganho' | 'perdido'
-
--- Temperatura do lead
-lead_temperature: 'cold' | 'warm' | 'hot'
-
--- Status de cliente (em português)
-client_status: 'ativo' | 'inativo' | 'churn'
-
--- Status de objetivo (em português)
-objective_status: 'em_andamento' | 'concluido' | 'atrasado' | 'pausado'
+INSERT INTO user_roles (user_id, role) 
+VALUES ('UUID_DO_USUARIO', 'admin');
 ```
+
+3. Adicione permissões na tabela `user_permissions`:
+```sql
+INSERT INTO user_permissions (user_id, modules, spaces)
+VALUES (
+  'UUID_DO_USUARIO',
+  ARRAY['dashboard', 'crm', 'clients', 'objectives', 'strategy', 'settings', 'admin'],
+  ARRAY[]::text[]  -- Admin tem acesso a todos os espaços automaticamente
+);
+```
+
+### 4. Criar Espaços Iniciais
+O schema já cria o espaço "Conto" por padrão. Para adicionar mais:
+```sql
+INSERT INTO spaces (id, label, description, color, icon) VALUES
+('amplia', 'Amplia', 'Amplia Marketing', 'bg-purple-600', 'Rocket');
+```
+
+---
+
+## 🗄️ Estrutura do Banco de Dados
 
 ### Tabelas Principais
 
 | Tabela | Descrição |
 |--------|-----------|
-| `profiles` | Perfis de usuários (sincronizado com auth.users) |
-| `user_roles` | Roles dos usuários |
-| `user_permissions` | Permissões granulares (módulos e espaços) |
-| `spaces` | Empresas/espaços do sistema |
-| `leads` | Leads do CRM |
+| `profiles` | Dados do usuário (sincronizado com auth.users via trigger) |
+| `user_roles` | Roles dos usuários (admin, gestor, comercial, analista) |
+| `user_permissions` | Módulos e espaços permitidos por usuário |
+| `spaces` | Espaços/empresas isolados |
+| `leads` | CRM - leads de vendas |
 | `clients` | Clientes ativos |
-| `nps_records` | Registros de NPS por cliente |
-| `objectives` | Objetivos estratégicos |
-| `progress_logs` | Logs de progresso dos objetivos |
+| `nps_records` | Registros de NPS dos clientes |
+| `objectives` | Metas estratégicas |
+| `progress_logs` | Logs de progresso das metas |
 
-### profiles
-```sql
-CREATE TABLE public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id),
-  email TEXT NOT NULL,
-  full_name TEXT NOT NULL,
-  avatar_url TEXT,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ
-);
-```
+### Enums
 
-### user_roles
 ```sql
-CREATE TABLE public.user_roles (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id),
-  role app_role NOT NULL,
-  UNIQUE (user_id, role)
-);
-```
+-- Roles de usuário
+app_role: 'admin' | 'gestor' | 'comercial' | 'analista'
 
-### user_permissions
-```sql
-CREATE TABLE public.user_permissions (
-  id UUID PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) UNIQUE,
-  modules TEXT[] DEFAULT '{}',
-  spaces TEXT[] DEFAULT '{}'
-);
-```
+-- Status de lead
+lead_status: 'novo' | 'contato' | 'reuniao_agendada' | 'reuniao_feita' | 'proposta' | 'negociacao' | 'ganho' | 'perdido'
 
-### spaces
-```sql
-CREATE TABLE public.spaces (
-  id TEXT PRIMARY KEY,
-  label TEXT NOT NULL,
-  description TEXT,
-  color TEXT DEFAULT 'bg-primary',
-  icon TEXT DEFAULT 'Building',
-  created_by UUID,
-  created_at TIMESTAMPTZ
-);
-```
+-- Temperatura do lead
+lead_temperature: 'cold' | 'warm' | 'hot'
 
-### leads
-```sql
-CREATE TABLE public.leads (
-  id UUID PRIMARY KEY,
-  space_id TEXT REFERENCES public.spaces(id),
-  name TEXT NOT NULL,
-  company TEXT,
-  email TEXT,
-  phone TEXT,
-  status lead_status DEFAULT 'novo',
-  source TEXT,
-  value NUMERIC DEFAULT 0,
-  temperature lead_temperature DEFAULT 'warm',
-  notes TEXT,
-  created_by UUID,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ
-);
-```
+-- Status de cliente
+client_status: 'ativo' | 'inativo' | 'churn'
 
-### clients
-```sql
-CREATE TABLE public.clients (
-  id UUID PRIMARY KEY,
-  space_id TEXT REFERENCES public.spaces(id),
-  name TEXT NOT NULL,
-  company TEXT,
-  email TEXT,
-  phone TEXT,
-  segment TEXT,
-  status client_status DEFAULT 'ativo',
-  monthly_value NUMERIC DEFAULT 0,
-  contract_start DATE,
-  package TEXT,
-  notes TEXT,
-  created_by UUID,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ
-);
-```
-
-### nps_records
-```sql
-CREATE TABLE public.nps_records (
-  id UUID PRIMARY KEY,
-  client_id UUID REFERENCES public.clients(id),
-  space_id TEXT REFERENCES public.spaces(id),
-  score INTEGER NOT NULL CHECK (score >= 0 AND score <= 10),
-  feedback TEXT,
-  recorded_at TIMESTAMPTZ,
-  created_by UUID
-);
-```
-
-### objectives
-```sql
-CREATE TABLE public.objectives (
-  id UUID PRIMARY KEY,
-  space_id TEXT REFERENCES public.spaces(id),
-  title TEXT NOT NULL,
-  description TEXT,
-  category TEXT,
-  target_value NUMERIC,
-  current_value NUMERIC DEFAULT 0,
-  unit TEXT DEFAULT '%',
-  start_date DATE,
-  end_date DATE,
-  status objective_status DEFAULT 'em_andamento',
-  is_commercial BOOLEAN DEFAULT FALSE,
-  value_type TEXT,
-  created_by UUID,
-  created_at TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ
-);
-```
-
-### progress_logs
-```sql
-CREATE TABLE public.progress_logs (
-  id UUID PRIMARY KEY,
-  objective_id UUID REFERENCES public.objectives(id),
-  value NUMERIC NOT NULL,
-  notes TEXT,
-  logged_at TIMESTAMPTZ,
-  created_by UUID
-);
+-- Status de objetivo
+objective_status: 'em_andamento' | 'concluido' | 'atrasado' | 'pausado'
 ```
 
 ---
 
 ## 🔐 Sistema de Permissões
 
-### Roles
+### Hierarquia de Roles
 
-| Role | Descrição | Módulos Padrão |
-|------|-----------|----------------|
-| `admin` | Acesso total | Todos |
-| `gestor` | Gerencia estratégia e equipe | dashboard, strategy, crm, clients, settings |
-| `comercial` | Foco em vendas | dashboard, crm, clients, settings |
-| `analista` | Acesso restrito | dashboard, settings |
+| Role | Permissões |
+|------|------------|
+| `admin` | Acesso total a todos os módulos e espaços |
+| `gestor` | Dashboard, Estratégia, CRM, Clientes, Configurações |
+| `comercial` | Dashboard, CRM, Clientes, Configurações |
+| `analista` | Dashboard, Configurações |
 
-### Módulos Disponíveis
+### Regras de Negócio
 
-- `dashboard` - Visão geral e métricas
-- `strategy` - Objetivos estratégicos
-- `crm` - Gestão de leads
-- `clients` - Gestão de clientes
-- `settings` - Configurações pessoais
-- `admin` - Painel administrativo
+1. **Isolamento por Espaço**: Cada lead, cliente e objetivo pertence a um `space_id`. Usuários só veem dados dos espaços que têm acesso.
 
-### Funções de Segurança
+2. **Admin tem acesso total**: A função `is_admin()` bypassa todas as verificações de espaço.
 
-```sql
--- Verifica se usuário tem uma role específica
-public.has_role(_user_id UUID, _role app_role) RETURNS BOOLEAN
+3. **Apenas admins podem deletar**: As políticas RLS restringem DELETE apenas para admins.
 
--- Verifica se usuário é admin
-public.is_admin(_user_id UUID) RETURNS BOOLEAN
+---
 
--- Retorna espaços permitidos do usuário
-public.get_user_spaces(_user_id UUID) RETURNS TEXT[]
+## 📁 Arquivos Relevantes
+
+### Hooks (src/hooks/)
+
+| Arquivo | Função |
+|---------|--------|
+| `useAuth.ts` | Login, logout, cadastro |
+| `useUserSession.ts` | Sessão do usuário, roles, permissões |
+| `useLeads.ts` | CRUD de leads |
+| `useClients.ts` | CRUD de clientes e NPS |
+| `useObjectives.ts` | CRUD de objetivos e logs |
+| `useSpaces.ts` | CRUD de espaços |
+| `useUserRole.ts` | Verificação de permissões |
+
+### Tipos (src/types/index.ts)
+
+Contém todas as interfaces TypeScript alinhadas com o schema do banco.
+
+---
+
+## 🔄 Fluxo de Dados
+
+### Autenticação
+```
+1. Usuário faz login -> supabase.auth.signInWithPassword()
+2. Trigger cria profile -> handle_new_user()
+3. Hook busca dados -> useUserSession()
+4. ProtectedRoute valida acesso
 ```
 
-### Políticas RLS
-
-- **Admins**: Acesso total a todos os dados
-- **Usuários**: Apenas dados dos espaços em `user_permissions.spaces`
-- **Exclusão**: Apenas admins podem excluir registros
-
----
-
-## 🪝 Hooks do Frontend
-
-| Hook | Descrição |
-|------|-----------|
-| `useAuth` | Autenticação (signIn, signUp, signOut, resetPassword) |
-| `useUserSession` | Sessão centralizada com cache via React Query |
-| `useUserRole` | Role e permissões do usuário |
-| `useSpaces` | CRUD de espaços |
-| `useLeads` | CRUD de leads (filtrado por espaço) |
-| `useClients` | CRUD de clientes + NPS |
-| `useObjectives` | CRUD de objetivos + progress logs |
-| `usePermissions` | Verificação de permissões CRUD |
-
----
-
-## 🎯 Metas Comerciais Automáticas
-
-Objetivos podem ser configurados como "comerciais" com alimentação automática:
-
-| value_type | Descrição |
-|------------|-----------|
-| `crm_pipeline` | Soma do valor dos leads em negociação |
-| `crm_won` | Soma do valor dos leads ganhos |
-| `clients_mrr` | MRR total de clientes ativos |
-| `clients_count` | Quantidade de clientes ativos |
-
----
-
-## 📱 Modo DEMO
-
-O sistema possui um modo DEMO (`DEMO_MODE = true` em `src/data/mockData.ts`) que:
-- Desativa chamadas ao Supabase
-- Usa dados mock em memória (persistentes durante navegação)
-- Simula usuário admin com acesso total
-- Útil para desenvolvimento e demonstrações
-
-**Para ativar produção**: altere `DEMO_MODE` para `false` em `src/data/mockData.ts`.
-
----
-
-## 🚀 Primeiro Acesso (Produção)
-
-1. **Execute o schema SQL** no Supabase SQL Editor (`supabase/schema.sql`)
-
-2. **Crie um usuário** no Auth do Supabase (Authentication > Users)
-
-3. **Defina como admin**:
-```sql
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('SEU_USER_ID', 'admin');
-
-INSERT INTO public.user_permissions (user_id, modules, spaces)
-VALUES (
-  'SEU_USER_ID',
-  ARRAY['dashboard', 'strategy', 'crm', 'clients', 'settings', 'admin'],
-  ARRAY['conto']
-);
+### CRUD de Dados
+```
+1. Hook chama supabase.from('tabela')
+2. RLS valida permissão baseada em:
+   - is_admin(auth.uid()) -> acesso total
+   - space_id in get_user_spaces(auth.uid()) -> acesso restrito
+3. Dados retornados/salvos
 ```
 
-4. **Desative o modo DEMO** em `src/data/mockData.ts`
+---
 
-5. **Acesse o sistema** e faça login
+## ⚠️ Pontos de Atenção
+
+1. **RLS sempre ativo**: Todas as tabelas têm Row Level Security habilitado.
+
+2. **Nunca expor roles em profile**: Roles ficam APENAS em `user_roles`.
+
+3. **Funções SECURITY DEFINER**: As funções `has_role()`, `is_admin()` e `get_user_spaces()` executam com privilégios elevados.
+
+4. **Cascade delete**: Deletar um espaço remove todos os dados vinculados (leads, clients, objectives).
 
 ---
 
-## 🐛 Troubleshooting
+## 🧪 Testando a Integração
 
-### Erro "no rows returned"
-- Verifique se o schema foi executado completamente
-- Verifique se há espaços criados na tabela `spaces`
-
-### Erro de permissão / Dados não aparecem
-- Verifique as políticas RLS no Supabase
-- Certifique-se que o usuário tem role em `user_roles`
-- Certifique-se que o usuário tem espaços em `user_permissions.spaces`
-
-### Usuário não aparece na lista de admins
-- O trigger `on_auth_user_created` deve estar ativo
-- Verifique se o profile foi criado na tabela `profiles`
+1. Execute o schema SQL no Supabase
+2. Crie um usuário admin conforme instruções acima
+3. Faça login no sistema
+4. Verifique se os espaços aparecem no seletor (topo esquerdo)
+5. Crie um lead e verifique se persiste no banco
+6. Troque de espaço e confirme que os dados são isolados
+7. Teste com usuário não-admin para validar restrições
 
 ---
 
-## ✅ Checklist de Produção
+## 📞 Credenciais Supabase
 
-- [x] Schema SQL v2.0 criado
-- [x] Tipos em português (lead_status, client_status, objective_status)
-- [x] Hooks integrados com Supabase
-- [x] RLS configurado com funções de segurança
-- [x] Trigger para criar profiles automaticamente
-- [x] Metas comerciais automáticas implementadas
-- [x] Credenciais atualizadas (projeto Janeiro 2026)
-- [ ] Primeiro admin configurado
-- [ ] Espaços iniciais criados
-- [ ] DEMO_MODE desativado
-- [ ] Testes de fluxo completos
+```
+URL: https://jqthecutclccbakzadax.supabase.co
+Anon Key: (configurado em src/integrations/supabase/client.ts)
+```
 
 ---
 
-*Documentação gerada pelo Conto CMS v2.0*
+## 🚀 Próximos Passos (Opcional)
+
+1. Configurar email de confirmação no Supabase Auth
+2. Adicionar políticas de rate limiting
+3. Configurar backups automáticos
+4. Implementar logs de auditoria
