@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Lead, LeadStatus } from "@/types";
+import { Lead, LeadStatus, LeadTemperature } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
@@ -44,6 +44,7 @@ export function useLeads() {
         status: l.status as LeadStatus,
         source: l.source,
         value: l.value,
+        temperature: (l.temperature as LeadTemperature) || 'warm',
         notes: l.notes,
         created_by: l.created_by,
         created_at: l.created_at,
@@ -88,6 +89,7 @@ export function useLeads() {
           status: data.status || 'novo',
           source: data.source || null,
           value: data.value || null,
+          temperature: data.temperature || 'warm',
           notes: data.notes || null,
           created_by: user.id,
         })
@@ -128,6 +130,7 @@ export function useLeads() {
     if (data.status !== undefined) updateData.status = data.status;
     if (data.source !== undefined) updateData.source = data.source;
     if (data.value !== undefined) updateData.value = data.value;
+    if (data.temperature !== undefined) updateData.temperature = data.temperature;
     if (data.notes !== undefined) updateData.notes = data.notes;
 
     const { error } = await supabase

@@ -32,6 +32,7 @@ export interface Client {
   status: ClientStatus;
   monthly_value: number | null;
   contract_start: string | null; // Data de início do contrato
+  package: string | null; // Pacote contratado
   notes: string | null;
   created_by: string | null; // user_id de quem criou
   created_at: string;
@@ -39,6 +40,9 @@ export interface Client {
   // Campos calculados no frontend
   npsHistory?: NPSRecord[];
 }
+
+// Temperatura do lead
+export type LeadTemperature = 'cold' | 'warm' | 'hot';
 
 // Lead - alinhado com tabela leads do Supabase
 export interface Lead {
@@ -51,6 +55,7 @@ export interface Lead {
   status: LeadStatus;
   source: string | null; // Origem do lead
   value: number | null;
+  temperature: LeadTemperature; // Temperatura do lead
   notes: string | null;
   created_by: string | null;
   created_at: string;
@@ -81,6 +86,8 @@ export interface Objective {
   start_date: string | null;
   end_date: string | null; // Era "deadline"
   status: ObjectiveStatus;
+  is_commercial: boolean; // Se é meta comercial
+  value_type: string | null; // Tipo de valor (monetário, percentual, etc.)
   created_by: string | null;
   created_at: string;
   updated_at: string;

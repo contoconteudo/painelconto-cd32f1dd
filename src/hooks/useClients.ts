@@ -92,6 +92,7 @@ export function useClients() {
         status: c.status as ClientStatus,
         monthly_value: c.monthly_value,
         contract_start: c.contract_start,
+        package: c.package || null,
         notes: c.notes,
         created_by: c.created_by,
         created_at: c.created_at,
@@ -138,6 +139,7 @@ export function useClients() {
           status: data.status || 'ativo',
           monthly_value: data.monthly_value || null,
           contract_start: data.contract_start || null,
+          package: data.package || null,
           notes: data.notes || null,
           created_by: user.id,
         })
@@ -180,6 +182,7 @@ export function useClients() {
     if (data.status !== undefined) updateData.status = data.status;
     if (data.monthly_value !== undefined) updateData.monthly_value = data.monthly_value;
     if (data.contract_start !== undefined) updateData.contract_start = data.contract_start;
+    if (data.package !== undefined) updateData.package = data.package;
     if (data.notes !== undefined) updateData.notes = data.notes;
 
     const { error } = await supabase

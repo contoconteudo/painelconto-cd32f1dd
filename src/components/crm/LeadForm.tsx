@@ -66,6 +66,7 @@ export function LeadForm({ open, onOpenChange, onSubmit, lead, mode, defaultStat
       value: data.value || null,
       source: data.source || null,
       status: data.status,
+      temperature: lead?.temperature || 'warm',
       notes: data.notes || null,
       created_by: lead?.created_by || null,
     });

@@ -10,7 +10,9 @@ import {
   ChevronDown,
   Check,
   Shield,
+  type LucideIcon,
 } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole, type AppRole, type ModulePermission } from "@/hooks/useUserRole";
@@ -22,6 +24,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+// Helper para obter ícone Lucide dinamicamente
+const getDynamicIcon = (iconName: string): LucideIcon => {
+  const icons = LucideIcons as unknown as Record<string, LucideIcon>;
+  const icon = icons[iconName];
+  if (icon && typeof icon === 'function') {
+    return icon;
+  }
+  return LucideIcons.LayoutDashboard;
+};
+
 // Storage keys for cleanup on logout
 const STORAGE_KEYS = {
   LEADS: "conto-leads",
@@ -118,7 +131,10 @@ export function Sidebar() {
                 "flex h-9 w-9 items-center justify-center rounded-lg",
                 currentInfo.gradient
               )}>
-                <Building2 className="h-5 w-5 text-white" />
+                {(() => {
+                  const SpaceIcon = getDynamicIcon(currentSpace?.icon || "LayoutDashboard");
+                  return <SpaceIcon className="h-5 w-5 text-white" />;
+                })()}
               </div>
               <div className="flex flex-col items-start flex-1 min-w-0">
                 <span className="text-lg font-bold text-sidebar-foreground truncate">
@@ -148,7 +164,10 @@ export function Sidebar() {
                       "flex h-8 w-8 items-center justify-center rounded-lg",
                       getGradientFromColor(space.color)
                     )}>
-                      <Building2 className="h-4 w-4 text-white" />
+                      {(() => {
+                        const SpaceIcon = getDynamicIcon(space.icon || "LayoutDashboard");
+                        return <SpaceIcon className="h-4 w-4 text-white" />;
+                      })()}
                     </div>
                     <div className="flex flex-col flex-1">
                       <span className="font-medium">{space.label}</span>

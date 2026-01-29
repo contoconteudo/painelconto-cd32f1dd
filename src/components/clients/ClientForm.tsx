@@ -56,6 +56,7 @@ export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormP
       status: data.status,
       monthly_value: data.monthly_value || null,
       contract_start: data.contract_start || null,
+      package: client?.package || null,
       notes: data.notes || null,
       created_by: client?.created_by || null,
     });

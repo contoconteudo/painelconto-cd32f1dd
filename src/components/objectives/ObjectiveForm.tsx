@@ -52,6 +52,8 @@ export function ObjectiveForm({ open, onOpenChange, onSubmit, objective, mode }:
       unit: unit,
       start_date: startDate || null,
       end_date: endDate || null,
+      is_commercial: objective?.is_commercial || false,
+      value_type: objective?.value_type || null,
       created_by: objective?.created_by || null,
     });
 

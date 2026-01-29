@@ -15,6 +15,7 @@ interface Space {
   label: string;
   description: string;
   color: string;
+  icon?: string;
 }
 
 interface CompanyContextType {
@@ -52,6 +53,7 @@ export function CompanyProvider({ children }: CompanyProviderProps) {
         label: s.label || s.id,
         description: s.description || "",
         color: s.color || "bg-primary",
+        icon: s.icon || "LayoutDashboard",
       }));
     } catch {
       return [];
