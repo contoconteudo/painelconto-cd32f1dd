@@ -104,7 +104,7 @@ export default function Login() {
 
             <Button 
               type="submit" 
-              className="w-full h-11 md:h-10 touch-manipulation" 
+              className="w-full h-11 md:h-10 touch-manipulation uppercase" 
               disabled={isLoading}
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
