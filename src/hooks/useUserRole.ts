@@ -1,11 +1,13 @@
 /**
  * Hook para verificar roles e permissões do usuário.
- * Wrapper sobre useUserSession para compatibilidade com código existente.
+ * 
+ * MODO DEMO: Retorna dados simulados sem acessar Supabase.
  */
 
 import { useCallback } from "react";
 import { useUserSession, AppRole, ModulePermission } from "./useUserSession";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
+import { DEMO_MODE, MOCK_ADMIN_USER, MOCK_SPACES } from "@/data/mockData";
 
 export type { AppRole, ModulePermission };
 export type CompanyAccess = string;
@@ -51,62 +53,39 @@ export function useUserRole(): UseUserRoleReturn {
     return session.allowedSpaces;
   }, [session.allowedSpaces]);
 
-  // Buscar todos os usuários (para admin)
+  // Buscar todos os usuários - MODO DEMO
   const getAllUsers = useCallback(async (): Promise<UserProfile[]> => {
-    const { data: profiles, error } = await supabase
-      .from("profiles")
-      .select("id, email, full_name");
-
-    if (error) {
-      console.error("Erro ao buscar usuários:", error);
-      return [];
+    // MODO DEMO: retorna lista simulada
+    if (DEMO_MODE) {
+      return [
+        {
+          id: MOCK_ADMIN_USER.id,
+          email: MOCK_ADMIN_USER.email,
+          full_name: MOCK_ADMIN_USER.full_name,
+          role: MOCK_ADMIN_USER.role,
+          modules: MOCK_ADMIN_USER.modules,
+          companies: MOCK_ADMIN_USER.companies,
+        },
+        {
+          id: "demo-gestor-001",
+          email: "gestor@demo.conto.com.br",
+          full_name: "Maria Gestora",
+          role: "gestor",
+          modules: ["dashboard", "strategy", "crm", "clients", "settings"],
+          companies: ["conto"],
+        },
+        {
+          id: "demo-comercial-001",
+          email: "comercial@demo.conto.com.br",
+          full_name: "João Comercial",
+          role: "comercial",
+          modules: ["dashboard", "crm", "clients", "settings"],
+          companies: ["conto", "amplia"],
+        },
+      ];
     }
 
-    const profileList = profiles || [];
-    if (profileList.length === 0) return [];
-
-    const userIds = profileList.map((p) => p.id);
-
-    // Evita padrão N+1: 3 queries no total (profiles + roles + permissions)
-    const [rolesRes, permsRes] = await Promise.all([
-      supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", userIds),
-      supabase
-        .from("user_permissions")
-        .select("user_id, modules, spaces")
-        .in("user_id", userIds),
-    ]);
-
-    if (rolesRes.error) console.error("Erro ao buscar roles:", rolesRes.error);
-    if (permsRes.error) console.error("Erro ao buscar permissões:", permsRes.error);
-
-    const roleByUser = new Map<string, AppRole>();
-    (rolesRes.data || []).forEach((r: any) => {
-      if (!roleByUser.has(r.user_id)) {
-        roleByUser.set(r.user_id, r.role as AppRole);
-      }
-    });
-
-    const permByUser = new Map<string, any>();
-    (permsRes.data || []).forEach((p: any) => {
-      permByUser.set(p.user_id, p);
-    });
-
-    return profileList.map((profile) => {
-      const perm = permByUser.get(profile.id);
-      // Schema padronizado: usar apenas 'modules' e 'spaces'
-      const modules = (perm?.modules ?? []) as ModulePermission[];
-      const companies = (perm?.spaces ?? []) as CompanyAccess[];
-
-      return {
-        ...profile,
-        role: roleByUser.get(profile.id) || null,
-        modules,
-        companies,
-      };
-    });
+    return [];
   }, []);
 
   const updateUserPermissions = useCallback(async (
@@ -114,52 +93,20 @@ export function useUserRole(): UseUserRoleReturn {
     modules: ModulePermission[], 
     companies: CompanyAccess[]
   ) => {
-    const { data: existing } = await supabase
-      .from("user_permissions")
-      .select("id")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (existing) {
-      await supabase
-        .from("user_permissions")
-        .update({ modules, spaces: companies, updated_at: new Date().toISOString() })
-        .eq("user_id", userId);
-    } else {
-      await supabase
-        .from("user_permissions")
-        .insert({ user_id: userId, modules, spaces: companies });
+    // MODO DEMO: apenas exibe toast
+    if (DEMO_MODE) {
+      console.log("DEMO: updateUserPermissions", { userId, modules, companies });
+      return;
     }
-
-    // Se for o usuário atual, invalidar cache
-    if (session.user?.id === userId) {
-      await session.refreshSession();
-    }
-  }, [session]);
+  }, []);
 
   const updateUserRole = useCallback(async (userId: string, newRole: AppRole) => {
-    const { data: existing } = await supabase
-      .from("user_roles")
-      .select("id")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (existing) {
-      await supabase
-        .from("user_roles")
-        .update({ role: newRole })
-        .eq("user_id", userId);
-    } else {
-      await supabase
-        .from("user_roles")
-        .insert({ user_id: userId, role: newRole });
+    // MODO DEMO: apenas exibe toast
+    if (DEMO_MODE) {
+      console.log("DEMO: updateUserRole", { userId, newRole });
+      return;
     }
-
-    // Se for o usuário atual, invalidar cache
-    if (session.user?.id === userId) {
-      await session.refreshSession();
-    }
-  }, [session]);
+  }, []);
 
   return {
     role: session.role,

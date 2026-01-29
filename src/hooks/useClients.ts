@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Client, NPSRecord, ClientStatus } from "@/types";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
+import { DEMO_MODE, MOCK_CLIENTS } from "@/data/mockData";
 
 // Helper function to calculate average NPS from history
 export function calculateClientNPS(npsHistory: NPSRecord[]): number {
@@ -29,87 +30,22 @@ export function useClients() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
 
-  // Carregar clientes do banco
+  // Carregar clientes - MODO DEMO
   const loadClients = useCallback(async () => {
-    if (!currentCompany) {
-      setClients([]);
+    setIsLoading(true);
+
+    // MODO DEMO: retorna dados mock filtrados por espaço
+    if (DEMO_MODE) {
+      const filteredClients = currentCompany 
+        ? MOCK_CLIENTS.filter(c => c.space_id === currentCompany)
+        : MOCK_CLIENTS;
+      setClients(filteredClients);
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      // Buscar clientes
-      const { data: clientsData, error: clientsError } = await supabase
-        .from("clients")
-        .select(
-          "id, space_id, name, company, email, phone, segment, status, monthly_value, contract_start, package, notes, created_by, created_at, updated_at"
-        )
-        .eq("space_id", currentCompany)
-        .order("created_at", { ascending: false });
-
-      if (clientsError) {
-        console.error("Erro ao carregar clientes:", clientsError);
-        toast.error("Erro ao carregar clientes.");
-        return;
-      }
-
-      // Buscar NPS de todos os clientes
-      const clientIds = (clientsData || []).map(c => c.id);
-      let npsRecords: Record<string, NPSRecord[]> = {};
-
-      if (clientIds.length > 0) {
-        const { data: npsData } = await supabase
-          .from("nps_records")
-          .select("id, client_id, space_id, score, feedback, recorded_at, created_by")
-          .eq("space_id", currentCompany)
-          .in("client_id", clientIds);
-
-        // Agrupar NPS por cliente
-        (npsData || []).forEach(nps => {
-          if (!nps.client_id) return;
-          if (!npsRecords[nps.client_id]) {
-            npsRecords[nps.client_id] = [];
-          }
-          npsRecords[nps.client_id].push({
-            id: nps.id,
-            client_id: nps.client_id,
-            space_id: nps.space_id,
-            score: nps.score,
-            feedback: nps.feedback,
-            recorded_at: nps.recorded_at,
-            created_by: nps.created_by,
-          });
-        });
-      }
-
-      const mappedClients: Client[] = (clientsData || []).map(c => ({
-        id: c.id,
-        space_id: c.space_id,
-        name: c.name,
-        company: c.company,
-        email: c.email,
-        phone: c.phone,
-        segment: c.segment,
-        status: c.status as ClientStatus,
-        monthly_value: c.monthly_value,
-        contract_start: c.contract_start,
-        package: c.package || null,
-        notes: c.notes,
-        created_by: c.created_by,
-        created_at: c.created_at,
-        updated_at: c.updated_at,
-        npsHistory: npsRecords[c.id] || [],
-      }));
-
-      setClients(mappedClients);
-    } catch (error) {
-      console.error("Erro ao carregar clientes:", error);
-      toast.error("Erro inesperado ao carregar clientes.");
-    } finally {
-      setIsLoading(false);
-    }
+    // Código real comentado para DEMO
+    setIsLoading(false);
   }, [currentCompany]);
 
   useEffect(() => {
@@ -119,184 +55,92 @@ export function useClients() {
   const addClient = useCallback(async (
     data: Omit<Client, "id" | "created_at" | "updated_at" | "npsHistory">
   ): Promise<Client | null> => {
-    if (!user?.id) {
-      toast.error("Você precisa estar logado para criar um cliente.");
-      return null;
-    }
-    
-    if (!currentCompany) {
-      toast.error("Nenhum espaço selecionado. Selecione um espaço no menu.");
-      return null;
-    }
-
-    try {
-      const { data: newClient, error } = await supabase
-        .from("clients")
-        .insert({
-          space_id: currentCompany,
-          name: data.name,
-          company: data.company || null,
-          email: data.email || null,
-          phone: data.phone || null,
-          segment: data.segment || null,
-          status: data.status || 'ativo',
-          monthly_value: data.monthly_value || null,
-          contract_start: data.contract_start || null,
-          package: data.package || null,
-          notes: data.notes || null,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Erro ao criar cliente:", error);
-        toast.error("Erro ao criar cliente: " + (error.message || "Tente novamente."));
-        return null;
-      }
-
-      const mappedClient: Client = {
-        ...newClient,
-        status: newClient.status as ClientStatus,
+    // MODO DEMO: adiciona localmente
+    if (DEMO_MODE) {
+      const newClient: Client = {
+        ...data,
+        id: `client-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         npsHistory: [],
       };
-
-      setClients(prev => [mappedClient, ...prev]);
-      toast.success("Cliente criado com sucesso!");
-      return mappedClient;
-    } catch (error) {
-      console.error("Erro inesperado ao criar cliente:", error);
-      toast.error("Erro inesperado. Verifique sua conexão.");
-      return null;
+      setClients(prev => [newClient, ...prev]);
+      toast.success("Cliente criado com sucesso! (DEMO)");
+      return newClient;
     }
-  }, [user?.id, currentCompany]);
+
+    toast.error("Modo produção desativado.");
+    return null;
+  }, []);
 
   const updateClient = useCallback(async (
     id: string, 
     data: Partial<Omit<Client, "id" | "created_at" | "updated_at">>
   ) => {
-    const updateData: Record<string, unknown> = {};
-    
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.company !== undefined) updateData.company = data.company;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.segment !== undefined) updateData.segment = data.segment;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.monthly_value !== undefined) updateData.monthly_value = data.monthly_value;
-    if (data.contract_start !== undefined) updateData.contract_start = data.contract_start;
-    if (data.package !== undefined) updateData.package = data.package;
-    if (data.notes !== undefined) updateData.notes = data.notes;
-
-    const { error } = await supabase
-      .from("clients")
-      .update(updateData)
-      .eq("id", id);
-
-    if (error) {
-      console.error("Erro ao atualizar cliente:", error);
-      toast.error("Erro ao atualizar cliente. Tente novamente.");
+    // MODO DEMO: atualiza localmente
+    if (DEMO_MODE) {
+      setClients(prev => prev.map(client => 
+        client.id === id ? { ...client, ...data, updated_at: new Date().toISOString() } : client
+      ));
+      toast.success("Cliente atualizado! (DEMO)");
       return;
     }
-
-    setClients(prev => prev.map(client => 
-      client.id === id ? { ...client, ...data } : client
-    ));
-    toast.success("Cliente atualizado com sucesso!");
   }, []);
 
   const deleteClient = useCallback(async (id: string) => {
-    const { error } = await supabase
-      .from("clients")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      console.error("Erro ao excluir cliente:", error);
-      toast.error("Erro ao excluir cliente. Tente novamente.");
+    // MODO DEMO: remove localmente
+    if (DEMO_MODE) {
+      setClients(prev => prev.filter(client => client.id !== id));
+      toast.success("Cliente excluído! (DEMO)");
       return;
     }
-
-    setClients(prev => prev.filter(client => client.id !== id));
-    toast.success("Cliente excluído com sucesso!");
   }, []);
 
   const addNPSRecord = useCallback(async (
     clientId: string, 
     record: { score: number; feedback?: string }
   ) => {
-    if (!currentCompany || !user?.id) {
-      toast.error("Erro de autenticação.");
-      return;
-    }
-
-    try {
-      const { data: newRecord, error } = await supabase
-        .from("nps_records")
-        .insert({
-          client_id: clientId,
-          space_id: currentCompany,
-          score: record.score,
-          feedback: record.feedback || null,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Erro ao criar NPS:", error);
-        toast.error("Erro ao registrar NPS.");
-        return;
-      }
-
-      const mappedRecord: NPSRecord = {
-        id: newRecord.id,
+    // MODO DEMO: adiciona NPS localmente
+    if (DEMO_MODE) {
+      const newRecord: NPSRecord = {
+        id: `nps-${Date.now()}`,
         client_id: clientId,
-        space_id: newRecord.space_id,
-        score: newRecord.score,
-        feedback: newRecord.feedback,
-        recorded_at: newRecord.recorded_at,
-        created_by: newRecord.created_by,
+        space_id: currentCompany || "conto",
+        score: record.score,
+        feedback: record.feedback || null,
+        recorded_at: new Date().toISOString(),
+        created_by: user?.id || "demo-admin-001",
       };
 
       setClients(prev => prev.map(client => {
         if (client.id !== clientId) return client;
         return { 
           ...client, 
-          npsHistory: [...(client.npsHistory || []), mappedRecord] 
+          npsHistory: [...(client.npsHistory || []), newRecord] 
         };
       }));
       
-      toast.success("NPS registrado com sucesso!");
-      return mappedRecord;
-    } catch (error) {
-      console.error("Erro inesperado ao criar NPS:", error);
-      toast.error("Erro inesperado.");
-      return null;
+      toast.success("NPS registrado! (DEMO)");
+      return newRecord;
     }
+
+    return null;
   }, [currentCompany, user?.id]);
 
   const deleteNPSRecord = useCallback(async (clientId: string, recordId: string) => {
-    const { error } = await supabase
-      .from("nps_records")
-      .delete()
-      .eq("id", recordId);
-
-    if (error) {
-      console.error("Erro ao excluir NPS:", error);
-      toast.error("Erro ao excluir NPS.");
+    // MODO DEMO: remove NPS localmente
+    if (DEMO_MODE) {
+      setClients(prev => prev.map(client => {
+        if (client.id !== clientId) return client;
+        return {
+          ...client,
+          npsHistory: (client.npsHistory || []).filter(r => r.id !== recordId),
+        };
+      }));
+      
+      toast.success("NPS removido! (DEMO)");
       return;
     }
-
-    setClients(prev => prev.map(client => {
-      if (client.id !== clientId) return client;
-      return {
-        ...client,
-        npsHistory: (client.npsHistory || []).filter(r => r.id !== recordId),
-      };
-    }));
-    
-    toast.success("NPS removido com sucesso!");
   }, []);
 
   const getStats = useCallback(() => {

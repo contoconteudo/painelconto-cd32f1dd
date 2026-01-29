@@ -1,13 +1,13 @@
 /**
  * Hook centralizado para sessão do usuário com cache via React Query.
- * Substitui múltiplas chamadas redundantes ao banco por uma única fonte de verdade.
  * 
- * FAIL-SAFE: Nunca deixa a aplicação travada em loading infinito.
+ * MODO DEMO: Retorna usuário admin simulado sem acessar Supabase.
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
+import { DEMO_MODE, MOCK_ADMIN_USER, MOCK_SPACES } from "@/data/mockData";
 
 export type AppRole = "admin" | "gestor" | "comercial" | "analista";
 export type ModulePermission = "dashboard" | "crm" | "clients" | "objectives" | "strategy" | "settings" | "admin";
@@ -47,194 +47,64 @@ const ALL_MODULES: ModulePermission[] = [
 const QUERY_KEY = ["user-session"];
 const SPACES_KEY = ["available-spaces"];
 
-// Timeout para evitar espera infinita (5 segundos)
-const FETCH_TIMEOUT = 2000;
-
-// Carregar dados de permissão do usuário - COM FAIL-SAFE
-async function fetchUserSession(userId: string): Promise<Omit<UserSession, "user">> {
-  const defaultPermissions: Omit<UserSession, "user"> = {
-    role: null,
-    modules: [],
-    spaces: [],
-    isAdmin: false,
-    permissionsState: "error",
+// Sessão DEMO simulada
+function getDemoSession(): UserSession {
+  return {
+    user: {
+      id: MOCK_ADMIN_USER.id,
+      email: MOCK_ADMIN_USER.email,
+      fullName: MOCK_ADMIN_USER.full_name,
+    },
+    role: MOCK_ADMIN_USER.role,
+    modules: ALL_MODULES,
+    spaces: MOCK_ADMIN_USER.companies,
+    isAdmin: true,
+    permissionsState: "ok",
   };
-
-  try {
-    // Criar promise com timeout
-    const timeoutPromise = new Promise<null>((resolve) => 
-      setTimeout(() => resolve(null), FETCH_TIMEOUT)
-    );
-
-    // Buscar role
-    const rolePromise = supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    // Buscar permissões
-    const permPromise = supabase
-      .from("user_permissions")
-      .select("modules, spaces")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    // Race: dados ou timeout
-    const results = await Promise.race([
-      Promise.all([rolePromise, permPromise]),
-      timeoutPromise.then(() => null),
-    ]);
-
-    // Se timeout, retorna default
-    if (!results) {
-      console.warn("Timeout ao buscar permissões - usando valores padrão");
-      return { ...defaultPermissions, permissionsState: "timeout" };
-    }
-
-    const [roleResult, permResult] = results;
-
-    // Log para debug
-    if (roleResult.error) {
-      console.warn("Erro ao buscar role:", roleResult.error.message);
-    }
-    if (permResult.error) {
-      console.warn("Erro ao buscar permissões:", permResult.error.message);
-    }
-
-    const role = (roleResult.data?.role as AppRole) || null;
-    const isAdmin = role === "admin";
-
-    // Schema padronizado: usar apenas 'modules' e 'spaces'
-    const rawModules = (permResult.data as { modules?: unknown } | null)?.modules ?? [];
-    const rawSpaces = (permResult.data as { spaces?: unknown } | null)?.spaces ?? [];
-    
-    // Se admin, tem acesso total
-    if (isAdmin) {
-      return {
-        role,
-        modules: ALL_MODULES,
-        spaces: [],
-        isAdmin: true,
-        permissionsState: "ok",
-      };
-    }
-
-    return {
-      role,
-      modules: (rawModules || []) as ModulePermission[],
-      spaces: (rawSpaces || []) as string[],
-      isAdmin: false,
-      permissionsState: "ok",
-    };
-  } catch (error) {
-    console.error("Erro crítico ao buscar permissões:", error);
-    return defaultPermissions;
-  }
 }
 
-// Carregar espaços disponíveis - COM FAIL-SAFE
-async function fetchAvailableSpaces(): Promise<NormalizedSpace[]> {
-  try {
-    // Timeout promise
-    const timeoutPromise = new Promise<null>((resolve) => 
-      setTimeout(() => resolve(null), FETCH_TIMEOUT)
-    );
-
-    const fetchPromise = supabase
-      .from("spaces")
-      .select("*")
-      .order("created_at", { ascending: true });
-
-    const result = await Promise.race([fetchPromise, timeoutPromise]);
-
-    // Se timeout, retorna array vazio
-    if (!result) {
-      console.warn("Timeout ao carregar espaços");
-      return [];
-    }
-
-    if (result.error) {
-      console.warn("Erro ao carregar espaços:", result.error.message);
-      return [];
-    }
-
-    const rows = (result.data || []) as Array<Record<string, any>>;
-    const normalized: NormalizedSpace[] = rows
-      .filter((row) => !!row?.id)
-      .map((row) => ({
-        id: String(row.id),
-        label: String(row.label ?? row.name ?? row.title ?? row.id),
-        description: String(row.description ?? ""),
-        color: String(row.color ?? "bg-primary"),
-        icon: String(row.icon ?? "LayoutDashboard"),
-        created_at: row.created_at ? String(row.created_at) : undefined,
-      }));
-
-    return normalized;
-  } catch (error) {
-    console.error("Erro crítico ao carregar espaços:", error);
-    return [];
-  }
+// Espaços DEMO
+function getDemoSpaces(): NormalizedSpace[] {
+  return MOCK_SPACES.map(s => ({
+    id: s.id,
+    label: s.label,
+    description: s.description,
+    color: s.color,
+    icon: s.icon,
+  }));
 }
 
 export function useUserSession() {
   const queryClient = useQueryClient();
 
-  // Query para sessão do usuário - NUNCA trava
+  // Query para sessão do usuário - MODO DEMO
   const sessionQuery = useQuery({
     queryKey: QUERY_KEY,
     queryFn: async (): Promise<UserSession> => {
-      try {
-        // getSession() é local e muito rápido
-        const { data: { session } } = await supabase.auth.getSession();
-        const user = session?.user ?? null;
-        
-        if (!user) {
-          return {
-            user: null,
-            role: null,
-            modules: [],
-            spaces: [],
-            isAdmin: false,
-            permissionsState: "ok",
-          };
-        }
-
-        // Buscar permissões com fail-safe
-        const permissions = await fetchUserSession(user.id);
-        
-        return {
-          user: {
-            id: user.id,
-            email: user.email || "",
-            fullName: user.user_metadata?.full_name || user.email?.split("@")[0] || "",
-          },
-          ...permissions,
-        };
-      } catch (error) {
-        console.error("Erro ao carregar sessão:", error);
-        // Retorna sessão vazia para evitar loading infinito
-        return {
-          user: null,
-          role: null,
-          modules: [],
-          spaces: [],
-          isAdmin: false,
-          permissionsState: "error",
-        };
+      // MODO DEMO: retorna sessão simulada imediatamente
+      if (DEMO_MODE) {
+        return getDemoSession();
       }
+
+      // Código real comentado para DEMO
+      return getDemoSession();
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 0, // Sem retry para evitar loading infinito
+    retry: 0,
   });
 
-  // Query para espaços disponíveis - NUNCA trava
+  // Query para espaços disponíveis - MODO DEMO
   const spacesQuery = useQuery({
     queryKey: SPACES_KEY,
-    queryFn: fetchAvailableSpaces,
+    queryFn: async (): Promise<NormalizedSpace[]> => {
+      // MODO DEMO: retorna espaços simulados
+      if (DEMO_MODE) {
+        return getDemoSpaces();
+      }
+      return getDemoSpaces();
+    },
     enabled: sessionQuery.isSuccess && !!sessionQuery.data?.user,
     staleTime: 10 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
@@ -247,16 +117,18 @@ export function useUserSession() {
     ? availableSpaces.map((s) => s.id)
     : (sessionQuery.data?.spaces || []);
 
-  // Escutar mudanças de autenticação
+  // Escutar mudanças de autenticação - DESATIVADO em DEMO
   useEffect(() => {
+    if (DEMO_MODE) return;
+    
+    // Código real comentado para DEMO
+    /*
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-          // Invalidar cache para forçar reload
           queryClient.invalidateQueries({ queryKey: QUERY_KEY });
           queryClient.invalidateQueries({ queryKey: SPACES_KEY });
           
-          // Disparar evento para componentes legacy
           const mappedUser = session?.user ? {
             id: session.user.id,
             email: session.user.email,
@@ -268,6 +140,7 @@ export function useUserSession() {
     );
 
     return () => subscription.unsubscribe();
+    */
   }, [queryClient]);
 
   // Escutar mudanças de espaços
@@ -286,9 +159,7 @@ export function useUserSession() {
   }, [sessionQuery.data?.role]);
 
   const canAccessModule = useCallback((module: ModulePermission): boolean => {
-    // Se é admin, tem acesso total
     if (sessionQuery.data?.isAdmin) return true;
-    // Se não tem role, não tem acesso
     if (!sessionQuery.data?.role) return false;
     return sessionQuery.data.modules.includes(module);
   }, [sessionQuery.data]);
@@ -308,7 +179,6 @@ export function useUserSession() {
     await queryClient.invalidateQueries({ queryKey: SPACES_KEY });
   }, [queryClient]);
 
-  // IMPORTANTE: isLoading só é true durante o fetch inicial
   const isLoading = sessionQuery.isLoading;
   const spacesLoading = spacesQuery.isLoading && sessionQuery.isSuccess && !!sessionQuery.data?.user;
 
@@ -321,7 +191,7 @@ export function useUserSession() {
     isAdmin: sessionQuery.data?.isAdmin || false,
     permissionsState: sessionQuery.data?.permissionsState || "ok",
     
-    // Estados de loading - NUNCA ficam true indefinidamente
+    // Estados de loading
     isLoading,
     isAuthenticated: !!sessionQuery.data?.user,
     

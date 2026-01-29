@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Objective, ProgressLog, ObjectiveStatus } from "@/types";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
+import { DEMO_MODE, MOCK_OBJECTIVES } from "@/data/mockData";
 
 function calculateStatus(currentValue: number, targetValue: number, endDate: string | null): ObjectiveStatus {
   if (!endDate || !targetValue) return "em_andamento";
@@ -15,7 +16,6 @@ function calculateStatus(currentValue: number, targetValue: number, endDate: str
   if (progress >= 100) return "concluido";
   if (now > deadline) return "atrasado";
   
-  // Calcular progresso esperado baseado no tempo decorrido
   const startOfYear = new Date(now.getFullYear(), 0, 1);
   const totalDays = (deadline.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24);
   const daysElapsed = (now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24);
@@ -31,85 +31,22 @@ export function useObjectives() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
 
-  // Carregar objetivos do banco
+  // Carregar objetivos - MODO DEMO
   const loadObjectives = useCallback(async () => {
-    if (!currentCompany) {
-      setObjectives([]);
+    setIsLoading(true);
+
+    // MODO DEMO: retorna dados mock filtrados por espaço
+    if (DEMO_MODE) {
+      const filteredObjectives = currentCompany 
+        ? MOCK_OBJECTIVES.filter(o => o.space_id === currentCompany)
+        : MOCK_OBJECTIVES;
+      setObjectives(filteredObjectives);
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      // Buscar objetivos
-      const { data: objectivesData, error: objectivesError } = await supabase
-        .from("objectives")
-        .select(
-          "id, space_id, title, description, category, target_value, current_value, unit, start_date, end_date, status, is_commercial, value_type, created_by, created_at, updated_at"
-        )
-        .eq("space_id", currentCompany)
-        .order("created_at", { ascending: false });
-
-      if (objectivesError) {
-        console.error("Erro ao carregar objetivos:", objectivesError);
-        toast.error("Erro ao carregar objetivos.");
-        return;
-      }
-
-      // Buscar progress logs
-      const objectiveIds = (objectivesData || []).map(o => o.id);
-      let progressLogs: Record<string, ProgressLog[]> = {};
-
-      if (objectiveIds.length > 0) {
-        const { data: logsData } = await supabase
-          .from("progress_logs")
-          .select("id, objective_id, value, notes, logged_at, created_by")
-          .in("objective_id", objectiveIds);
-
-        (logsData || []).forEach(log => {
-          if (!log.objective_id) return;
-          if (!progressLogs[log.objective_id]) {
-            progressLogs[log.objective_id] = [];
-          }
-          progressLogs[log.objective_id].push({
-            id: log.id,
-            objective_id: log.objective_id,
-            value: log.value,
-            notes: log.notes,
-            logged_at: log.logged_at,
-            created_by: log.created_by,
-          });
-        });
-      }
-
-      const mappedObjectives: Objective[] = (objectivesData || []).map(o => ({
-        id: o.id,
-        space_id: o.space_id,
-        title: o.title,
-        description: o.description,
-        category: o.category,
-        target_value: o.target_value,
-        current_value: o.current_value || 0,
-        unit: o.unit || '%',
-        start_date: o.start_date,
-        end_date: o.end_date,
-        status: o.status as ObjectiveStatus,
-        is_commercial: o.is_commercial || false,
-        value_type: o.value_type || null,
-        created_by: o.created_by,
-        created_at: o.created_at,
-        updated_at: o.updated_at,
-        progressLogs: progressLogs[o.id] || [],
-      }));
-
-      setObjectives(mappedObjectives);
-    } catch (error) {
-      console.error("Erro ao carregar objetivos:", error);
-      toast.error("Erro inesperado ao carregar objetivos.");
-    } finally {
-      setIsLoading(false);
-    }
+    // Código real comentado para DEMO
+    setIsLoading(false);
   }, [currentCompany]);
 
   useEffect(() => {
@@ -119,118 +56,56 @@ export function useObjectives() {
   const addObjective = useCallback(async (
     data: Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs" | "current_value" | "status"> & { is_commercial?: boolean; value_type?: string }
   ): Promise<Objective | null> => {
-    if (!user?.id) {
-      toast.error("Você precisa estar logado para criar um objetivo.");
-      return null;
-    }
-    
-    if (!currentCompany) {
-      toast.error("Nenhum espaço selecionado.");
-      return null;
-    }
-
-    try {
-      const { data: newObjective, error } = await supabase
-        .from("objectives")
-        .insert({
-          space_id: currentCompany,
-          title: data.title,
-          description: data.description || null,
-          category: data.category || null,
-          target_value: data.target_value || null,
-          current_value: 0,
-          unit: data.unit || '%',
-          start_date: data.start_date || null,
-          end_date: data.end_date || null,
-          status: 'em_andamento',
-          is_commercial: data.is_commercial || false,
-          value_type: data.value_type || null,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Erro ao criar objetivo:", error);
-        toast.error("Erro ao criar objetivo: " + (error.message || "Tente novamente."));
-        return null;
-      }
-
-      const mappedObjective: Objective = {
-        ...newObjective,
-        status: newObjective.status as ObjectiveStatus,
+    // MODO DEMO: adiciona localmente
+    if (DEMO_MODE) {
+      const newObjective: Objective = {
+        ...data,
+        id: `obj-${Date.now()}`,
+        current_value: 0,
+        status: "em_andamento",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         progressLogs: [],
       };
-
-      setObjectives(prev => [mappedObjective, ...prev]);
-      toast.success("Objetivo criado com sucesso!");
-      return mappedObjective;
-    } catch (error) {
-      console.error("Erro inesperado ao criar objetivo:", error);
-      toast.error("Erro inesperado. Verifique sua conexão.");
-      return null;
+      setObjectives(prev => [newObjective, ...prev]);
+      toast.success("Objetivo criado com sucesso! (DEMO)");
+      return newObjective;
     }
-  }, [user?.id, currentCompany]);
+
+    toast.error("Modo produção desativado.");
+    return null;
+  }, []);
 
   const updateObjective = useCallback(async (
     id: string, 
     data: Partial<Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs">>
   ) => {
-    const updateData: Record<string, unknown> = {};
-    
-    if (data.title !== undefined) updateData.title = data.title;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.category !== undefined) updateData.category = data.category;
-    if (data.target_value !== undefined) updateData.target_value = data.target_value;
-    if (data.current_value !== undefined) updateData.current_value = data.current_value;
-    if (data.unit !== undefined) updateData.unit = data.unit;
-    if (data.start_date !== undefined) updateData.start_date = data.start_date;
-    if (data.end_date !== undefined) updateData.end_date = data.end_date;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.is_commercial !== undefined) updateData.is_commercial = data.is_commercial;
-    if (data.value_type !== undefined) updateData.value_type = data.value_type;
-
-    const { error } = await supabase
-      .from("objectives")
-      .update(updateData)
-      .eq("id", id);
-
-    if (error) {
-      console.error("Erro ao atualizar objetivo:", error);
-      toast.error("Erro ao atualizar objetivo. Tente novamente.");
+    // MODO DEMO: atualiza localmente
+    if (DEMO_MODE) {
+      setObjectives(prev => prev.map(obj => {
+        if (obj.id !== id) return obj;
+        const updated = { ...obj, ...data, updated_at: new Date().toISOString() };
+        if (data.current_value !== undefined || data.target_value !== undefined || data.end_date !== undefined) {
+          updated.status = calculateStatus(
+            updated.current_value, 
+            updated.target_value || 0, 
+            updated.end_date
+          );
+        }
+        return updated;
+      }));
+      toast.success("Objetivo atualizado! (DEMO)");
       return;
     }
-
-    setObjectives(prev => prev.map(obj => {
-      if (obj.id !== id) return obj;
-      const updated = { ...obj, ...data };
-      // Recalcular status se necessário
-      if (data.current_value !== undefined || data.target_value !== undefined || data.end_date !== undefined) {
-        updated.status = calculateStatus(
-          updated.current_value, 
-          updated.target_value || 0, 
-          updated.end_date
-        );
-      }
-      return updated;
-    }));
-    toast.success("Objetivo atualizado com sucesso!");
   }, []);
 
   const deleteObjective = useCallback(async (id: string) => {
-    const { error } = await supabase
-      .from("objectives")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      console.error("Erro ao excluir objetivo:", error);
-      toast.error("Erro ao excluir objetivo. Tente novamente.");
+    // MODO DEMO: remove localmente
+    if (DEMO_MODE) {
+      setObjectives(prev => prev.filter(obj => obj.id !== id));
+      toast.success("Objetivo excluído! (DEMO)");
       return;
     }
-
-    setObjectives(prev => prev.filter(obj => obj.id !== id));
-    toast.success("Objetivo excluído com sucesso!");
   }, []);
 
   const addProgressLog = useCallback(async (
@@ -239,102 +114,48 @@ export function useObjectives() {
     notes?: string,
     loggedAt?: string
   ): Promise<ProgressLog | null> => {
-    if (!user?.id) {
-      toast.error("Você precisa estar logado.");
-      return null;
-    }
-
-    try {
-      const { data: newLog, error } = await supabase
-        .from("progress_logs")
-        .insert({
-          objective_id: objectiveId,
-          value,
-          notes: notes || null,
-          ...(loggedAt ? { logged_at: loggedAt } : {}),
-          created_by: user.id,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Erro ao criar log de progresso:", error);
-        toast.error("Erro ao registrar progresso.");
-        return null;
-      }
-
-      const mappedLog: ProgressLog = {
-        id: newLog.id,
+    // MODO DEMO: adiciona log localmente
+    if (DEMO_MODE) {
+      const newLog: ProgressLog = {
+        id: `log-${Date.now()}`,
         objective_id: objectiveId,
-        value: newLog.value,
-        notes: newLog.notes,
-        logged_at: newLog.logged_at,
-        created_by: newLog.created_by,
+        value,
+        notes: notes || null,
+        logged_at: loggedAt || new Date().toISOString(),
+        created_by: user?.id || "demo-admin-001",
       };
 
-      // Atualizar estado local + calcular novos valores (sem side-effects dentro do setState)
-      let computedCurrentValue = 0;
-      let computedStatus: ObjectiveStatus = "em_andamento";
+      setObjectives(prev => prev.map(obj => {
+        if (obj.id !== objectiveId) return obj;
+        
+        const newLogs = [...(obj.progressLogs || []), newLog];
+        const computedCurrentValue = newLogs.reduce((sum, l) => sum + l.value, 0);
+        const computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
 
-      setObjectives((prev) =>
-        prev.map((obj) => {
-          if (obj.id !== objectiveId) return obj;
+        return {
+          ...obj,
+          progressLogs: newLogs,
+          current_value: computedCurrentValue,
+          status: computedStatus,
+        };
+      }));
 
-          const newLogs = [...(obj.progressLogs || []), mappedLog];
-          computedCurrentValue = newLogs.reduce((sum, l) => sum + l.value, 0);
-          computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
-
-          return {
-            ...obj,
-            progressLogs: newLogs,
-            current_value: computedCurrentValue,
-            status: computedStatus,
-          };
-        })
-      );
-
-      // Persistir valores derivados no banco (await + tratamento de erro)
-      const { error: updateError } = await supabase
-        .from("objectives")
-        .update({ current_value: computedCurrentValue, status: computedStatus })
-        .eq("id", objectiveId);
-
-      if (updateError) {
-        console.error("Erro ao atualizar objetivo após progresso:", updateError);
-        toast.error("Progresso salvo, mas falhou ao atualizar o objetivo. Recarregue a página.");
-      }
-
-      toast.success("Progresso registrado!");
-      return mappedLog;
-    } catch (error) {
-      console.error("Erro inesperado:", error);
-      toast.error("Erro inesperado.");
-      return null;
+      toast.success("Progresso registrado! (DEMO)");
+      return newLog;
     }
+
+    return null;
   }, [user?.id]);
 
   const deleteProgressLog = useCallback(async (objectiveId: string, logId: string) => {
-    const { error } = await supabase
-      .from("progress_logs")
-      .delete()
-      .eq("id", logId);
-
-    if (error) {
-      console.error("Erro ao excluir log:", error);
-      toast.error("Erro ao excluir registro.");
-      return;
-    }
-
-    let computedCurrentValue = 0;
-    let computedStatus: ObjectiveStatus = "em_andamento";
-
-    setObjectives((prev) =>
-      prev.map((obj) => {
+    // MODO DEMO: remove log localmente
+    if (DEMO_MODE) {
+      setObjectives(prev => prev.map(obj => {
         if (obj.id !== objectiveId) return obj;
 
-        const filteredLogs = (obj.progressLogs || []).filter((l) => l.id !== logId);
-        computedCurrentValue = filteredLogs.reduce((sum, l) => sum + l.value, 0);
-        computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
+        const filteredLogs = (obj.progressLogs || []).filter(l => l.id !== logId);
+        const computedCurrentValue = filteredLogs.reduce((sum, l) => sum + l.value, 0);
+        const computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
 
         return {
           ...obj,
@@ -342,20 +163,11 @@ export function useObjectives() {
           current_value: computedCurrentValue,
           status: computedStatus,
         };
-      })
-    );
-
-    const { error: updateError } = await supabase
-      .from("objectives")
-      .update({ current_value: computedCurrentValue, status: computedStatus })
-      .eq("id", objectiveId);
-
-    if (updateError) {
-      console.error("Erro ao atualizar objetivo após excluir progresso:", updateError);
-      toast.error("Registro removido, mas falhou ao atualizar o objetivo. Recarregue a página.");
+      }));
+      
+      toast.success("Registro removido! (DEMO)");
+      return;
     }
-    
-    toast.success("Registro removido!");
   }, []);
 
   const getProgress = useCallback((objective: Objective) => {
