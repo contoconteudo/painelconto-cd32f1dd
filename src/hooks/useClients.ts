@@ -98,17 +98,24 @@ export function useClients() {
 
   const addNPSRecord = useCallback(async (
     clientId: string, 
-    record: { score: number; feedback?: string }
+    record: { score: number; feedback?: string; month?: number; year?: number }
   ) => {
     // MODO DEMO: adiciona NPS localmente
     if (DEMO_MODE) {
+      // Usar mês/ano fornecido ou atual
+      const month = record.month ?? new Date().getMonth();
+      const year = record.year ?? new Date().getFullYear();
+      
+      // Criar data do primeiro dia do mês selecionado
+      const recordedDate = new Date(year, month, 1);
+      
       const newRecord: NPSRecord = {
         id: `nps-${Date.now()}`,
         client_id: clientId,
         space_id: currentCompany || "conto",
         score: record.score,
         feedback: record.feedback || null,
-        recorded_at: new Date().toISOString(),
+        recorded_at: recordedDate.toISOString(),
         created_by: user?.id || "demo-admin-001",
       };
 

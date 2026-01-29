@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Client, NPSRecord } from "@/types";
 import { Building2, Mail, Phone, Calendar, TrendingUp, Star, Trash2, Edit } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,7 +19,7 @@ interface ClientDetailProps {
   client: Client | null;
   onEdit: () => void;
   onDelete: () => void;
-  onAddNPSRecord: (record: { score: number; feedback?: string }) => Promise<void> | void;
+  onAddNPSRecord: (record: { score: number; feedback?: string; month: number; year: number }) => Promise<void> | void;
   onDeleteNPSRecord: (recordId: string) => void;
 }
 
@@ -74,10 +75,18 @@ function calculateLTV(monthlyValue: number | null, contractStart: string | null)
   return monthlyValue * months;
 }
 
+// Helper para gerar anos disponíveis
+function getAvailableYears(): number[] {
+  const currentYear = new Date().getFullYear();
+  return [currentYear - 1, currentYear, currentYear + 1];
+}
+
 export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onAddNPSRecord, onDeleteNPSRecord }: ClientDetailProps) {
   const { canDelete } = usePermissions();
   const [newScore, setNewScore] = useState<number | null>(null);
   const [newFeedback, setNewFeedback] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [isSavingNps, setIsSavingNps] = useState(false);
 
   if (!client) return null;
@@ -195,6 +204,45 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onA
                     <p className="text-xs font-semibold text-foreground mb-2">Registrar novo NPS</p>
                     <NPSInputButtons value={newScore} onChange={setNewScore} />
                   </div>
+                  
+                  {/* Seleção de mês/ano */}
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Select 
+                        value={selectedMonth.toString()} 
+                        onValueChange={(v) => setSelectedMonth(parseInt(v))}
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Mês" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MONTHS.map((month, idx) => (
+                            <SelectItem key={idx} value={idx.toString()}>
+                              {month}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-24">
+                      <Select 
+                        value={selectedYear.toString()} 
+                        onValueChange={(v) => setSelectedYear(parseInt(v))}
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Ano" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAvailableYears().map((year) => (
+                            <SelectItem key={year} value={year.toString()}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       placeholder="Feedback (opcional)"
@@ -213,9 +261,18 @@ export function ClientDetail({ open, onOpenChange, client, onEdit, onDelete, onA
                           await onAddNPSRecord({
                             score: newScore,
                             feedback: newFeedback.trim() ? newFeedback.trim() : undefined,
+                            month: selectedMonth,
+                            year: selectedYear,
                           });
                           setNewScore(null);
                           setNewFeedback("");
+                          // Avançar para o próximo mês
+                          if (selectedMonth === 11) {
+                            setSelectedMonth(0);
+                            setSelectedYear(selectedYear + 1);
+                          } else {
+                            setSelectedMonth(selectedMonth + 1);
+                          }
                         } finally {
                           setIsSavingNps(false);
                         }

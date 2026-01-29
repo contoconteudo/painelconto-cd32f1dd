@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useState, useEffect } from "react";
-import { Shield, Edit2, Save, X, Users, AlertCircle, Info, Building2, Plus, Trash2 } from "lucide-react";
+import { Shield, Edit2, Save, X, Users, AlertCircle, Info, Building2, Plus, Trash2, Rocket, Briefcase, Store, Globe, Star, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -35,7 +35,19 @@ import { useUserRole, type AppRole, type ModulePermission, type CompanyAccess, t
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ALL_MODULES, DEFAULT_ROLE_PERMISSIONS } from "@/data/mockData";
 import { Separator } from "@/components/ui/separator";
-import { useSpaces, Space, SPACE_COLORS } from "@/hooks/useSpaces";
+import { useSpaces, Space, SPACE_COLORS, SPACE_ICONS } from "@/hooks/useSpaces";
+
+// Mapa de ícones para renderização
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Building: Building2,
+  Building2: Building2,
+  Rocket: Rocket,
+  Briefcase: Briefcase,
+  Store: Store,
+  Globe: Globe,
+  Star: Star,
+  Zap: Zap,
+};
 
 const AVAILABLE_ROLES: { value: AppRole; label: string; description: string }[] = [
   { value: "admin", label: "Admin", description: "Acesso total ao sistema" },
@@ -61,7 +73,7 @@ const getRoleBadgeStyle = (role: AppRole | null) => {
 
 export default function AdminDashboard() {
   const { isAdmin, getAllUsers, updateUserPermissions, updateUserRole } = useUserRole();
-  const { spaces, createSpace, deleteSpace, isLoading: spacesLoading, SPACE_COLORS } = useSpaces();
+  const { spaces, createSpace, deleteSpace, isLoading: spacesLoading, SPACE_COLORS, SPACE_ICONS } = useSpaces();
   
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
@@ -76,6 +88,7 @@ export default function AdminDashboard() {
   const [newSpaceName, setNewSpaceName] = useState("");
   const [newSpaceDescription, setNewSpaceDescription] = useState("");
   const [newSpaceColor, setNewSpaceColor] = useState(SPACE_COLORS[2].value);
+  const [newSpaceIcon, setNewSpaceIcon] = useState("Building");
 
   // Estado para confirmar exclusão de espaço
   const [deletingSpace, setDeletingSpace] = useState<Space | null>(null);
@@ -161,7 +174,7 @@ export default function AdminDashboard() {
 
   // Handlers para gestão de espaços
   const handleCreateSpace = async () => {
-    const result = await createSpace(newSpaceName, newSpaceDescription, newSpaceColor);
+    const result = await createSpace(newSpaceName, newSpaceDescription, newSpaceColor, newSpaceIcon);
     
     if (result.success) {
       toast.success(`Espaço "${result.space?.label}" criado com sucesso!`);
@@ -169,6 +182,7 @@ export default function AdminDashboard() {
       setNewSpaceName("");
       setNewSpaceDescription("");
       setNewSpaceColor(SPACE_COLORS[2].value);
+      setNewSpaceIcon("Building");
     } else {
       toast.error(result.error || "Erro ao criar espaço");
     }
@@ -413,12 +427,17 @@ export default function AdminDashboard() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className={cn(
-                        "h-8 w-8 md:h-10 md:w-10 rounded-lg flex items-center justify-center flex-shrink-0",
-                        space.color
-                      )}>
-                        <Building2 className="h-4 w-4 md:h-5 md:w-5 text-white" />
-                      </div>
+                      {(() => {
+                        const IconComponent = ICON_MAP[space.icon] || Building2;
+                        return (
+                          <div className={cn(
+                            "h-8 w-8 md:h-10 md:w-10 rounded-lg flex items-center justify-center flex-shrink-0",
+                            space.color
+                          )}>
+                            <IconComponent className="h-4 w-4 md:h-5 md:w-5 text-white" />
+                          </div>
+                        );
+                      })()}
                       <div className="min-w-0">
                         <p className="font-medium text-sm truncate">{space.label}</p>
                         <p className="text-xs text-muted-foreground truncate">{space.description}</p>
@@ -673,27 +692,56 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-2">
+              <Label>Ícone</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {SPACE_ICONS.map((iconOption) => {
+                  const IconComponent = ICON_MAP[iconOption.value] || Building2;
+                  return (
+                    <button
+                      key={iconOption.value}
+                      type="button"
+                      className={cn(
+                        "h-10 rounded-lg transition-all flex items-center justify-center border",
+                        newSpaceIcon === iconOption.value 
+                          ? "ring-2 ring-offset-2 ring-primary bg-primary/10 border-primary/30" 
+                          : "bg-muted/50 border-border/50 hover:bg-muted"
+                      )}
+                      onClick={() => setNewSpaceIcon(iconOption.value)}
+                      title={iconOption.label}
+                    >
+                      <IconComponent className={cn(
+                        "h-5 w-5",
+                        newSpaceIcon === iconOption.value ? "text-primary" : "text-muted-foreground"
+                      )} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label>Cor de Identificação</Label>
               <div className="grid grid-cols-4 gap-2">
-                {SPACE_COLORS.map((color) => (
-                  <button
-                    key={color.value}
-                    type="button"
-                    className={cn(
-                      "h-10 rounded-lg transition-all flex items-center justify-center",
-                      color.value,
-                      newSpaceColor === color.value 
-                        ? "ring-2 ring-offset-2 ring-primary" 
-                        : "opacity-70 hover:opacity-100"
-                    )}
-                    onClick={() => setNewSpaceColor(color.value)}
-                    title={color.label}
-                  >
-                    {newSpaceColor === color.value && (
-                      <div className="h-3 w-3 bg-white rounded-full" />
-                    )}
-                  </button>
-                ))}
+                {SPACE_COLORS.map((color) => {
+                  const IconComponent = ICON_MAP[newSpaceIcon] || Building2;
+                  return (
+                    <button
+                      key={color.value}
+                      type="button"
+                      className={cn(
+                        "h-10 rounded-lg transition-all flex items-center justify-center",
+                        color.value,
+                        newSpaceColor === color.value 
+                          ? "ring-2 ring-offset-2 ring-primary" 
+                          : "opacity-70 hover:opacity-100"
+                      )}
+                      onClick={() => setNewSpaceColor(color.value)}
+                      title={color.label}
+                    >
+                      <IconComponent className="h-4 w-4 text-white" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
