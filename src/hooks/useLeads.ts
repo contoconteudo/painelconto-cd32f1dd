@@ -3,7 +3,7 @@
  * Integra diretamente com Supabase.
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Lead, LeadStatus } from "@/types";
 import { supabase } from "@/integrations/supabase/client";

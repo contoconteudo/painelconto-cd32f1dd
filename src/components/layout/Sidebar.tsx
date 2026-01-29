@@ -87,8 +87,9 @@ export function Sidebar() {
       localStorage.removeItem(STORAGE_KEYS.OBJECTIVES);
       toast.success("Logout realizado com sucesso!");
       navigate("/login");
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao fazer logout");
+    } catch (error: unknown) {
+      const err = error as Error;
+      toast.error(err.message || "Erro ao fazer logout");
     }
   };
 
