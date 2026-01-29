@@ -5,101 +5,65 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Objective, ObjectiveValueType, CommercialDataSource } from "@/types";
-import { TrendingUp, Users, Database } from "lucide-react";
+import { Objective } from "@/types";
+import { OBJECTIVE_UNITS, OBJECTIVE_CATEGORIES } from "@/lib/constants";
 
 interface ObjectiveFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: Omit<Objective, "id" | "createdAt" | "progressLogs" | "currentValue" | "status" | "project_id" | "user_id" | "company_id">) => void;
+  onSubmit: (data: Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs" | "current_value" | "status">) => void;
   objective?: Objective;
   mode: "create" | "edit";
 }
 
-const valueTypeLabels: Record<ObjectiveValueType, string> = {
-  financial: "Financeiro (R$)",
-  quantity: "Quantidade",
-  percentage: "Porcentagem (%)",
-};
-
-const dataSourceLabels: Record<CommercialDataSource, { label: string; description: string; icon: typeof TrendingUp }> = {
-  crm: { 
-    label: "CRM (Novas Vendas)", 
-    description: "Leads convertidos em negócios fechados",
-    icon: TrendingUp 
-  },
-  clients: { 
-    label: "Clientes Ativos", 
-    description: "MRR de clientes com status ativo",
-    icon: Users 
-  },
-};
-
 export function ObjectiveForm({ open, onOpenChange, onSubmit, objective, mode }: ObjectiveFormProps) {
-  const [name, setName] = useState(objective?.name || "");
+  const [title, setTitle] = useState(objective?.title || "");
   const [description, setDescription] = useState(objective?.description || "");
-  const [valueType, setValueType] = useState<ObjectiveValueType>(objective?.valueType || "financial");
-  const [targetValue, setTargetValue] = useState(objective?.targetValue?.toString() || "");
-  const [deadline, setDeadline] = useState(objective?.deadline || "");
-  const [isCommercial, setIsCommercial] = useState(objective?.isCommercial || false);
-  const [dataSources, setDataSources] = useState<CommercialDataSource[]>(objective?.dataSources || []);
+  const [category, setCategory] = useState(objective?.category || "");
+  const [unit, setUnit] = useState(objective?.unit || "%");
+  const [targetValue, setTargetValue] = useState(objective?.target_value?.toString() || "");
+  const [startDate, setStartDate] = useState(objective?.start_date || "");
+  const [endDate, setEndDate] = useState(objective?.end_date || "");
 
   // Reset form when dialog opens/closes or objective changes
   useEffect(() => {
     if (open) {
-      setName(objective?.name || "");
+      setTitle(objective?.title || "");
       setDescription(objective?.description || "");
-      setValueType(objective?.valueType || "financial");
-      setTargetValue(objective?.targetValue?.toString() || "");
-      setDeadline(objective?.deadline || "");
-      setIsCommercial(objective?.isCommercial || false);
-      setDataSources(objective?.dataSources || []);
+      setCategory(objective?.category || "");
+      setUnit(objective?.unit || "%");
+      setTargetValue(objective?.target_value?.toString() || "");
+      setStartDate(objective?.start_date || "");
+      setEndDate(objective?.end_date || "");
     }
   }, [open, objective]);
-
-  const handleDataSourceToggle = (source: CommercialDataSource) => {
-    setDataSources((prev) =>
-      prev.includes(source)
-        ? prev.filter((s) => s !== source)
-        : [...prev, source]
-    );
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name.trim() || !targetValue || !deadline) return;
-    if (isCommercial && dataSources.length === 0) return;
+    if (!title.trim()) return;
 
     onSubmit({
-      name: name.trim(),
-      description: description.trim(),
-      valueType,
-      targetValue: parseFloat(targetValue),
-      deadline,
-      isCommercial,
-      dataSources: isCommercial ? dataSources : [],
+      space_id: objective?.space_id || "",
+      title: title.trim(),
+      description: description.trim() || null,
+      category: category || null,
+      target_value: targetValue ? parseFloat(targetValue) : null,
+      unit: unit,
+      start_date: startDate || null,
+      end_date: endDate || null,
+      created_by: objective?.created_by || null,
     });
 
     // Reset form
-    setName("");
+    setTitle("");
     setDescription("");
-    setValueType("financial");
+    setCategory("");
+    setUnit("%");
     setTargetValue("");
-    setDeadline("");
-    setIsCommercial(false);
-    setDataSources([]);
+    setStartDate("");
+    setEndDate("");
     onOpenChange(false);
-  };
-
-  const getPlaceholder = () => {
-    switch (valueType) {
-      case "financial": return "Ex: 50000";
-      case "quantity": return "Ex: 5";
-      case "percentage": return "Ex: 75";
-    }
   };
 
   return (
@@ -113,11 +77,11 @@ export function ObjectiveForm({ open, onOpenChange, onSubmit, objective, mode }:
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nome do Objetivo</Label>
+            <Label htmlFor="title">Título do Objetivo *</Label>
             <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex: Aumentar faturamento em 67%"
               required
             />
@@ -136,110 +100,64 @@ export function ObjectiveForm({ open, onOpenChange, onSubmit, objective, mode }:
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="valueType">Tipo de Meta</Label>
-              <Select value={valueType} onValueChange={(v: ObjectiveValueType) => setValueType(v)}>
+              <Label>Categoria</Label>
+              <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(valueTypeLabels).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  {OBJECTIVE_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="targetValue">Valor da Meta</Label>
-              <Input
-                id="targetValue"
-                type="number"
-                value={targetValue}
-                onChange={(e) => setTargetValue(e.target.value)}
-                placeholder={getPlaceholder()}
-                required
-              />
+              <Label>Unidade</Label>
+              <Select value={unit} onValueChange={setUnit}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OBJECTIVE_UNITS.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="deadline">Prazo</Label>
+            <Label htmlFor="targetValue">Valor da Meta</Label>
             <Input
-              id="deadline"
-              type="date"
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
-              required
+              id="targetValue"
+              type="number"
+              value={targetValue}
+              onChange={(e) => setTargetValue(e.target.value)}
+              placeholder="Ex: 100"
             />
           </div>
 
-          {/* Seção de Meta Comercial */}
-          <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Database className="h-4 w-4 text-primary" />
-                <Label htmlFor="isCommercial" className="text-sm font-medium cursor-pointer">
-                  Meta Comercial Automática
-                </Label>
-              </div>
-              <Switch
-                id="isCommercial"
-                checked={isCommercial}
-                onCheckedChange={(checked) => {
-                  setIsCommercial(checked);
-                  if (!checked) setDataSources([]);
-                }}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Data de Início</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
-            
-            {isCommercial && (
-              <div className="space-y-3 pt-2">
-                <p className="text-xs text-muted-foreground">
-                  Selecione as fontes de dados para cálculo automático:
-                </p>
-                
-                {(Object.entries(dataSourceLabels) as [CommercialDataSource, typeof dataSourceLabels.crm][]).map(
-                  ([key, { label, description, icon: Icon }]) => (
-                    <div
-                      key={key}
-                      className={`flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                        dataSources.includes(key)
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground/50"
-                      }`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleDataSourceToggle(key);
-                      }}
-                    >
-                      <Checkbox
-                        id={`source-${key}`}
-                        checked={dataSources.includes(key)}
-                        onCheckedChange={() => handleDataSourceToggle(key)}
-                        className="mt-0.5"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Icon className="h-4 w-4 text-primary" />
-                          <span className="text-sm font-medium">
-                            {label}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{description}</p>
-                      </div>
-                    </div>
-                  )
-                )}
-
-                {dataSources.length === 0 && (
-                  <p className="text-xs text-destructive">
-                    Selecione pelo menos uma fonte de dados
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="endDate">Prazo Final</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
           </div>
 
           <DialogFooter>
@@ -249,7 +167,6 @@ export function ObjectiveForm({ open, onOpenChange, onSubmit, objective, mode }:
             <Button 
               type="submit" 
               className="gradient-primary text-primary-foreground"
-              disabled={isCommercial && dataSources.length === 0}
             >
               {mode === "create" ? "Criar Objetivo" : "Salvar Alterações"}
             </Button>

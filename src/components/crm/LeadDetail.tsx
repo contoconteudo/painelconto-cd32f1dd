@@ -2,9 +2,9 @@ import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Lead, LeadStage } from "@/types";
+import { Lead, LeadStatus } from "@/types";
 import { LeadForm } from "./LeadForm";
-import { Pencil, Trash2, Phone, Mail, Building2, Clock, DollarSign, Flame, Thermometer, Snowflake } from "lucide-react";
+import { Pencil, Trash2, Phone, Mail, Building2, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { LEAD_STAGES, LEAD_TEMPERATURES } from "@/lib/constants";
+import { LEAD_STATUSES } from "@/lib/constants";
 import { usePermissions } from "@/hooks/usePermissions";
 
 interface LeadDetailProps {
@@ -26,25 +26,17 @@ interface LeadDetailProps {
   lead: Lead | null;
   onUpdate: (id: string, data: Partial<Lead>) => void;
   onDelete: (id: string) => void;
-  onMoveToStage: (id: string, stage: LeadStage) => void;
+  onMoveToStatus: (id: string, status: LeadStatus) => void;
 }
 
-const temperatureIcons = {
-  hot: { icon: Flame, class: "text-destructive" },
-  warm: { icon: Thermometer, class: "text-warning" },
-  cold: { icon: Snowflake, class: "text-primary" },
-};
-
-export function LeadDetail({ open, onOpenChange, lead, onUpdate, onDelete, onMoveToStage }: LeadDetailProps) {
+export function LeadDetail({ open, onOpenChange, lead, onUpdate, onDelete, onMoveToStatus }: LeadDetailProps) {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   const { canDelete } = usePermissions();
 
   if (!lead) return null;
 
-  const stage = LEAD_STAGES[lead.stage];
-  const temp = { ...LEAD_TEMPERATURES[lead.temperature], ...temperatureIcons[lead.temperature] };
-  const TempIcon = temp.icon;
+  const statusConfig = LEAD_STATUSES[lead.status];
 
   const handleDelete = () => {
     onDelete(lead.id);
@@ -65,22 +57,21 @@ export function LeadDetail({ open, onOpenChange, lead, onUpdate, onDelete, onMov
                 <SheetTitle className="text-lg font-semibold leading-tight mb-1">
                   {lead.name}
                 </SheetTitle>
-                <SheetDescription>{lead.company}</SheetDescription>
+                <SheetDescription>{lead.company || "Sem empresa"}</SheetDescription>
               </div>
             </div>
           </SheetHeader>
 
           <div className="space-y-6">
-            {/* Status & Temperature */}
+            {/* Status */}
             <div className="flex items-center gap-3">
               <Badge className="gap-1">
-                <div className={cn("h-2 w-2 rounded-full", stage.color)} />
-                {stage.name}
+                <div className={cn("h-2 w-2 rounded-full", statusConfig?.color)} />
+                {statusConfig?.name || lead.status}
               </Badge>
-              <div className={cn("flex items-center gap-1 text-sm", temp.class)}>
-                <TempIcon className="h-4 w-4" />
-                {temp.label}
-              </div>
+              {lead.source && (
+                <Badge variant="secondary">{lead.source}</Badge>
+              )}
             </div>
 
             {/* Value */}
@@ -90,7 +81,7 @@ export function LeadDetail({ open, onOpenChange, lead, onUpdate, onDelete, onMov
                 <span className="text-sm text-muted-foreground">Valor Estimado</span>
               </div>
               <p className="text-2xl font-bold text-primary">
-                R$ {lead.value.toLocaleString('pt-BR')}
+                R$ {(lead.value || 0).toLocaleString('pt-BR')}
               </p>
             </div>
 
@@ -115,22 +106,7 @@ export function LeadDetail({ open, onOpenChange, lead, onUpdate, onDelete, onMov
                   </a>
                 </div>
               )}
-
-              <div className="flex items-center gap-3">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  Último contato: {new Date(lead.lastContact).toLocaleDateString('pt-BR')}
-                </span>
-              </div>
             </div>
-
-            {/* Origin */}
-            {lead.origin && (
-              <div>
-                <h4 className="text-sm font-semibold text-foreground mb-2">Origem</h4>
-                <Badge variant="secondary">{lead.origin}</Badge>
-              </div>
-            )}
 
             {/* Notes */}
             {lead.notes && (
@@ -142,18 +118,18 @@ export function LeadDetail({ open, onOpenChange, lead, onUpdate, onDelete, onMov
               </div>
             )}
 
-            {/* Move to Stage */}
+            {/* Move to Status */}
             <div>
               <h4 className="text-sm font-semibold text-foreground mb-2">Mover para</h4>
               <Select 
-                value={lead.stage} 
-                onValueChange={(stage: LeadStage) => onMoveToStage(lead.id, stage)}
+                value={lead.status} 
+                onValueChange={(status: LeadStatus) => onMoveToStatus(lead.id, status)}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.entries(LEAD_STAGES) as [LeadStage, { name: string; color: string }][]).map(
+                  {(Object.entries(LEAD_STATUSES) as [LeadStatus, { name: string; color: string }][]).map(
                     ([key, config]) => (
                       <SelectItem key={key} value={key}>
                         <div className="flex items-center gap-2">
@@ -206,7 +182,7 @@ export function LeadDetail({ open, onOpenChange, lead, onUpdate, onDelete, onMov
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Lead?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o lead "{lead.name}" de {lead.company}? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir o lead "{lead.name}"? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

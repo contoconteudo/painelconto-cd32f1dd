@@ -9,13 +9,13 @@ import { Client, NPSRecord } from "@/types";
 import { Star, Building2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getLatestNPS } from "@/hooks/useClients";
-import { MONTHS, getNPSColor } from "@/lib/constants";
+import { MONTHS } from "@/lib/constants";
 
 interface NPSQuickRegisterProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clients: Client[];
-  onAddNPS: (clientId: string, record: Omit<NPSRecord, "id" | "client_id">) => void;
+  onAddNPS: (clientId: string, record: { score: number; feedback?: string }) => void;
 }
 
 function NPSInput({ 
@@ -51,26 +51,20 @@ function NPSInput({
 }
 
 export function NPSQuickRegister({ open, onOpenChange, clients, onAddNPS }: NPSQuickRegisterProps) {
-  const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [npsValues, setNpsValues] = useState<Record<string, number | null>>({});
-  const [npsNotes, setNpsNotes] = useState<Record<string, string>>({});
+  const [npsFeedback, setNpsFeedback] = useState<Record<string, string>>({});
   const [savedClients, setSavedClients] = useState<Set<string>>(new Set());
 
   // Only show active clients
-  const activeClients = clients.filter((c) => c.status === "active");
+  const activeClients = clients.filter((c) => c.status === "ativo");
 
   const handleSaveNPS = (clientId: string) => {
     const score = npsValues[clientId];
     if (score === null || score === undefined) return;
 
     onAddNPS(clientId, {
-      month: selectedMonth,
-      year: selectedYear,
       score,
-      notes: npsNotes[clientId] || "",
-      recordedAt: new Date().toISOString().split("T")[0],
+      feedback: npsFeedback[clientId] || undefined,
     });
 
     setSavedClients((prev) => new Set(prev).add(clientId));
@@ -85,8 +79,6 @@ export function NPSQuickRegister({ open, onOpenChange, clients, onAddNPS }: NPSQ
     onOpenChange(false);
   };
 
-  const years = [now.getFullYear(), now.getFullYear() - 1];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh]">
@@ -97,39 +89,10 @@ export function NPSQuickRegister({ open, onOpenChange, clients, onAddNPS }: NPSQ
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex items-center gap-4 mb-4">
-          <div className="space-y-1">
-            <Label>Mês</Label>
-            <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(parseInt(v))}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.map((name, i) => (
-                  <SelectItem key={i} value={(i + 1).toString()}>{name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>Ano</Label>
-            <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
-              <SelectTrigger className="w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {years.map((year) => (
-                  <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <ScrollArea className="max-h-[50vh] pr-4">
+        <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-3">
             {activeClients.map((client) => {
-              const latestNPS = getLatestNPS(client.npsHistory);
+              const latestNPS = getLatestNPS(client.npsHistory || []);
               const isSaved = savedClients.has(client.id);
 
               return (
@@ -146,7 +109,7 @@ export function NPSQuickRegister({ open, onOpenChange, clients, onAddNPS }: NPSQ
                         <Building2 className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate">{client.company}</p>
+                        <p className="text-sm font-semibold truncate">{client.name}</p>
                         <p className="text-xs text-muted-foreground">
                           Último NPS: {latestNPS !== null ? latestNPS : "-"}
                         </p>
@@ -179,9 +142,9 @@ export function NPSQuickRegister({ open, onOpenChange, clients, onAddNPS }: NPSQ
 
                   <div className="mt-2 ml-12">
                     <Input
-                      placeholder="Observação (opcional)"
-                      value={npsNotes[client.id] || ""}
-                      onChange={(e) => setNpsNotes((prev) => ({ ...prev, [client.id]: e.target.value }))}
+                      placeholder="Feedback (opcional)"
+                      value={npsFeedback[client.id] || ""}
+                      onChange={(e) => setNpsFeedback((prev) => ({ ...prev, [client.id]: e.target.value }))}
                       className="text-sm h-8"
                       maxLength={1000}
                     />

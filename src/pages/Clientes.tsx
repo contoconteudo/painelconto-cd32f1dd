@@ -32,8 +32,9 @@ function NPSBadge({ score }: { score: number | null }) {
   );
 }
 
-function calculateLTV(monthlyValue: number, startDate: string): number {
-  const start = new Date(startDate);
+function calculateLTV(monthlyValue: number | null, contractStart: string | null): number {
+  if (!monthlyValue || !contractStart) return 0;
+  const start = new Date(contractStart);
   const now = new Date();
   const months = Math.max(1, Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30)));
   return monthlyValue * months;
@@ -41,7 +42,8 @@ function calculateLTV(monthlyValue: number, startDate: string): number {
 
 // Mobile client card component
 function MobileClientCard({ client, onClick }: { client: Client; onClick: () => void }) {
-  const latestNPS = getLatestNPS(client.npsHistory);
+  const latestNPS = getLatestNPS(client.npsHistory || []);
+  const statusConfig = CLIENT_STATUSES[client.status];
   
   return (
     <div 
@@ -54,18 +56,17 @@ function MobileClientCard({ client, onClick }: { client: Client; onClick: () => 
             <Building2 className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground truncate">{client.company}</p>
-            <p className="text-xs text-muted-foreground truncate">{client.contact}</p>
+            <p className="text-sm font-semibold text-foreground truncate">{client.name}</p>
+            <p className="text-xs text-muted-foreground truncate">{client.company || client.segment || "-"}</p>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <Badge className={cn("text-xs", CLIENT_STATUSES[client.status].className)}>
-                {CLIENT_STATUSES[client.status].label}
+              <Badge className={cn("text-xs", statusConfig?.className)}>
+                {statusConfig?.label || client.status}
               </Badge>
-              <Badge variant="secondary" className="text-xs">{client.package}</Badge>
             </div>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <p className="text-sm font-bold text-foreground">R$ {(client.monthlyValue / 1000).toFixed(1)}k</p>
+          <p className="text-sm font-bold text-foreground">R$ {((client.monthly_value || 0) / 1000).toFixed(1)}k</p>
           <NPSBadge score={latestNPS} />
           <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />
         </div>
@@ -93,7 +94,7 @@ export default function Clientes() {
 
   // Get unique segments for filter
   const segments = useMemo(() => {
-    const uniqueSegments = new Set(clients.map((c) => c.segment));
+    const uniqueSegments = new Set(clients.map((c) => c.segment).filter(Boolean) as string[]);
     return Array.from(uniqueSegments).sort();
   }, [clients]);
 
@@ -101,9 +102,9 @@ export default function Clientes() {
   const filteredClients = useMemo(() => {
     return clients.filter((client) => {
       const matchesSearch =
-        client.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.contact.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.email.toLowerCase().includes(searchTerm.toLowerCase());
+        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (client.company || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (client.email || "").toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesStatus = statusFilter === "all" || client.status === statusFilter;
       const matchesSegment = segmentFilter === "all" || client.segment === segmentFilter;
@@ -115,22 +116,9 @@ export default function Clientes() {
   const hasActiveFilters = statusFilter !== "all" || segmentFilter !== "all";
 
   // Handlers
-  const handleAddClient = (data: Omit<Client, "id" | "npsHistory" | "project_id" | "user_id" | "company_id">) => {
-    addClient(data);
-    toast.success("Cliente criado com sucesso!");
-  };
-
-  const handleUpdateClient = (data: Omit<Client, "id" | "npsHistory" | "project_id" | "user_id" | "company_id">) => {
-    if (!selectedClient) return;
-    updateClient(selectedClient.id, data);
-    toast.success("Cliente atualizado com sucesso!");
-    setSelectedClient(null);
-  };
-
   const handleDeleteClient = () => {
     if (!selectedClient) return;
     deleteClient(selectedClient.id);
-    toast.success("Cliente excluído com sucesso!");
     setDeleteDialogOpen(false);
     setDetailOpen(false);
     setSelectedClient(null);
@@ -143,10 +131,9 @@ export default function Clientes() {
     if (updatedClient) {
       setSelectedClient({
         ...updatedClient,
-        npsHistory: updatedClient.npsHistory.filter((r) => r.id !== recordId),
+        npsHistory: (updatedClient.npsHistory || []).filter((r) => r.id !== recordId),
       });
     }
-    toast.success("Registro de NPS excluído!");
   };
 
   const openClientDetail = (client: Client) => {
@@ -211,8 +198,8 @@ export default function Clientes() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="active">Ativos</SelectItem>
-              <SelectItem value="inactive">Inativos</SelectItem>
+              <SelectItem value="ativo">Ativos</SelectItem>
+              <SelectItem value="inativo">Inativos</SelectItem>
               <SelectItem value="churn">Churn</SelectItem>
             </SelectContent>
           </Select>
@@ -282,9 +269,8 @@ export default function Clientes() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-muted/30">
+                <th className="text-left text-xs font-semibold text-muted-foreground p-4">Nome</th>
                 <th className="text-left text-xs font-semibold text-muted-foreground p-4">Empresa</th>
-                <th className="text-left text-xs font-semibold text-muted-foreground p-4">Contato</th>
-                <th className="text-left text-xs font-semibold text-muted-foreground p-4">Pacote</th>
                 <th className="text-left text-xs font-semibold text-muted-foreground p-4">Valor/Mês</th>
                 <th className="text-left text-xs font-semibold text-muted-foreground p-4">Status</th>
                 <th className="text-left text-xs font-semibold text-muted-foreground p-4">Último NPS</th>
@@ -294,7 +280,8 @@ export default function Clientes() {
             </thead>
             <tbody>
               {filteredClients.map((client) => {
-                const latestNPS = getLatestNPS(client.npsHistory);
+                const latestNPS = getLatestNPS(client.npsHistory || []);
+                const statusConfig = CLIENT_STATUSES[client.status];
                 
                 return (
                   <tr 
@@ -308,42 +295,45 @@ export default function Clientes() {
                           <Building2 className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-foreground">{client.company}</p>
-                          <p className="text-xs text-muted-foreground">{client.segment}</p>
+                          <p className="text-sm font-semibold text-foreground">{client.name}</p>
+                          <p className="text-xs text-muted-foreground">{client.email || "-"}</p>
                         </div>
                       </div>
                     </td>
                     <td className="p-4">
                       <div>
-                        <p className="text-sm font-medium text-foreground">{client.contact}</p>
-                        <p className="text-xs text-muted-foreground">{client.email}</p>
+                        <p className="text-sm font-medium text-foreground">{client.company || "-"}</p>
+                        <p className="text-xs text-muted-foreground">{client.segment || "-"}</p>
                       </div>
                     </td>
                     <td className="p-4">
-                      <Badge variant="secondary" className="font-medium">{client.package}</Badge>
+                      <p className="text-sm font-semibold text-foreground">R$ {(client.monthly_value || 0).toLocaleString('pt-BR')}</p>
                     </td>
                     <td className="p-4">
-                      <p className="text-sm font-semibold text-foreground">R$ {client.monthlyValue.toLocaleString('pt-BR')}</p>
-                    </td>
-                    <td className="p-4">
-                      <Badge className={CLIENT_STATUSES[client.status].className}>
-                        {CLIENT_STATUSES[client.status].label}
+                      <Badge className={statusConfig?.className}>
+                        {statusConfig?.label || client.status}
                       </Badge>
                     </td>
                     <td className="p-4">
                       <NPSBadge score={latestNPS} />
                     </td>
                     <td className="p-4">
-                      <p className="text-sm font-medium text-muted-foreground">R$ {calculateLTV(client.monthlyValue, client.startDate).toLocaleString('pt-BR')}</p>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        R$ {calculateLTV(client.monthly_value, client.contract_start).toLocaleString('pt-BR')}
+                      </p>
                     </td>
                     <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <a href={`tel:${client.phone}`} className="p-2 rounded hover:bg-muted transition-colors">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                        </a>
-                        <a href={`mailto:${client.email}`} className="p-2 rounded hover:bg-muted transition-colors">
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                        </a>
+                        {client.phone && (
+                          <a href={`tel:${client.phone}`} className="p-2 rounded hover:bg-muted transition-colors">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                          </a>
+                        )}
+                        {client.email && (
+                          <a href={`mailto:${client.email}`} className="p-2 rounded hover:bg-muted transition-colors">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
+                          </a>
+                        )}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button className="p-2 rounded hover:bg-muted transition-colors">
@@ -380,7 +370,7 @@ export default function Clientes() {
               })}
               {filteredClients.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="p-8 text-center text-muted-foreground">
                     Nenhum cliente encontrado.
                   </td>
                 </tr>
@@ -398,7 +388,7 @@ export default function Clientes() {
           if (!open) setSelectedClient(null);
         }}
         client={selectedClient}
-        onSubmit={selectedClient ? handleUpdateClient : handleAddClient}
+        onSubmit={selectedClient ? (data) => updateClient(selectedClient.id, data) : addClient}
       />
 
       <ClientDetail
@@ -420,14 +410,14 @@ export default function Clientes() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="max-w-[90vw] sm:max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Cliente</AlertDialogTitle>
+            <AlertDialogTitle>Excluir Cliente?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir "{selectedClient?.company}"? Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir "{selectedClient?.name}"? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteClient} className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90">
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteClient} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

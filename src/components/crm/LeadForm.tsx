@@ -6,20 +6,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lead, LeadTemperature, LeadStage } from "@/types";
+import { Lead, LeadStatus } from "@/types";
 import { leadSchema, LeadFormData } from "@/lib/validations";
-import { LEAD_STAGES, LEAD_TEMPERATURES, LEAD_ORIGINS } from "@/lib/constants";
+import { LEAD_STATUSES, LEAD_SOURCES } from "@/lib/constants";
 
 interface LeadFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: Omit<Lead, "id" | "createdAt" | "stageChangedAt" | "project_id" | "user_id" | "company_id">) => void;
+  onSubmit: (data: Omit<Lead, "id" | "created_at" | "updated_at">) => void;
   lead?: Lead;
   mode: "create" | "edit";
-  defaultStage?: LeadStage;
+  defaultStatus?: LeadStatus;
 }
 
-export function LeadForm({ open, onOpenChange, onSubmit, lead, mode, defaultStage = "new" }: LeadFormProps) {
+// Alias for moveLeadToStage compatibility
+export type { LeadStatus as LeadStage } from "@/types";
+
+export function LeadForm({ open, onOpenChange, onSubmit, lead, mode, defaultStatus = "novo" }: LeadFormProps) {
   const { 
     register, 
     handleSubmit, 
@@ -31,43 +34,40 @@ export function LeadForm({ open, onOpenChange, onSubmit, lead, mode, defaultStag
     resolver: zodResolver(leadSchema),
     defaultValues: lead ? {
       name: lead.name,
-      company: lead.company,
-      email: lead.email,
-      phone: lead.phone,
-      value: lead.value,
-      temperature: lead.temperature,
-      origin: lead.origin,
-      stage: lead.stage,
-      notes: lead.notes,
+      company: lead.company || "",
+      email: lead.email || "",
+      phone: lead.phone || "",
+      value: lead.value || 0,
+      source: lead.source || "",
+      status: lead.status,
+      notes: lead.notes || "",
     } : {
       name: "",
       company: "",
       email: "",
       phone: "",
       value: 0,
-      temperature: "warm",
-      origin: "",
-      stage: defaultStage,
+      source: "",
+      status: defaultStatus,
       notes: "",
     },
   });
 
-  const currentTemperature = watch("temperature");
-  const currentOrigin = watch("origin");
-  const currentStage = watch("stage");
+  const currentSource = watch("source");
+  const currentStatus = watch("status");
 
   const handleFormSubmit = (data: LeadFormData) => {
     onSubmit({
+      space_id: lead?.space_id || "",
       name: data.name,
-      company: data.company,
-      email: data.email,
-      phone: data.phone,
-      value: data.value,
-      temperature: data.temperature,
-      origin: data.origin,
-      stage: data.stage,
-      lastContact: new Date().toISOString().split("T")[0],
-      notes: data.notes,
+      company: data.company || null,
+      email: data.email || null,
+      phone: data.phone || null,
+      value: data.value || null,
+      source: data.source || null,
+      status: data.status,
+      notes: data.notes || null,
+      created_by: lead?.created_by || null,
     });
 
     reset();
@@ -96,7 +96,7 @@ export function LeadForm({ open, onOpenChange, onSubmit, lead, mode, defaultStag
               {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="company">Empresa *</Label>
+              <Label htmlFor="company">Empresa</Label>
               <Input
                 id="company"
                 {...register("company")}
@@ -148,57 +148,37 @@ export function LeadForm({ open, onOpenChange, onSubmit, lead, mode, defaultStag
               {errors.value && <p className="text-xs text-destructive">{errors.value.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label>Temperatura</Label>
-              <Select 
-                value={currentTemperature} 
-                onValueChange={(v: LeadTemperature) => setValue("temperature", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.entries(LEAD_TEMPERATURES) as [LeadTemperature, { label: string; emoji: string }][]).map(
-                    ([key, { label, emoji }]) => (
-                      <SelectItem key={key} value={key}>{emoji} {label}</SelectItem>
-                    )
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
               <Label>Origem</Label>
-              <Select value={currentOrigin} onValueChange={(v) => setValue("origin", v)}>
+              <Select value={currentSource} onValueChange={(v) => setValue("source", v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {LEAD_ORIGINS.map((opt) => (
+                  {LEAD_SOURCES.map((opt) => (
                     <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Estágio</Label>
-              <Select 
-                value={currentStage} 
-                onValueChange={(v: LeadStage) => setValue("stage", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.entries(LEAD_STAGES) as [LeadStage, { name: string }][]).map(
-                    ([key, { name }]) => (
-                      <SelectItem key={key} value={key}>{name}</SelectItem>
-                    )
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select 
+              value={currentStatus} 
+              onValueChange={(v: LeadStatus) => setValue("status", v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.entries(LEAD_STATUSES) as [LeadStatus, { name: string }][]).map(
+                  ([key, { name }]) => (
+                    <SelectItem key={key} value={key}>{name}</SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

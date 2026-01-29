@@ -8,13 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Client, ClientStatus } from "@/types";
 import { clientSchema, ClientFormData } from "@/lib/validations";
-import { CLIENT_PACKAGES, CLIENT_SEGMENTS } from "@/lib/constants";
+import { CLIENT_SEGMENTS } from "@/lib/constants";
 
 interface ClientFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client?: Client | null;
-  onSubmit: (data: Omit<Client, "id" | "npsHistory" | "project_id" | "user_id" | "company_id">) => Promise<unknown> | void;
+  onSubmit: (data: Omit<Client, "id" | "created_at" | "updated_at" | "npsHistory">) => Promise<unknown> | void;
 }
 
 export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormProps) {
@@ -23,52 +23,49 @@ export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormP
   const { register, handleSubmit, formState: { errors }, setValue, watch, reset } = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
     defaultValues: client ? {
-      company: client.company,
-      contact: client.contact,
-      email: client.email,
-      phone: client.phone,
-      segment: client.segment,
-      package: client.package,
-      monthlyValue: client.monthlyValue,
+      name: client.name,
+      company: client.company || "",
+      email: client.email || "",
+      phone: client.phone || "",
+      segment: client.segment || "",
       status: client.status,
-      startDate: client.startDate,
+      monthly_value: client.monthly_value || 0,
+      contract_start: client.contract_start || "",
       notes: client.notes || "",
     } : {
+      name: "",
       company: "",
-      contact: "",
       email: "",
       phone: "",
       segment: "",
-      package: "",
-      monthlyValue: 0,
-      status: "active" as ClientStatus,
-      startDate: new Date().toISOString().split("T")[0],
+      status: "ativo" as ClientStatus,
+      monthly_value: 0,
+      contract_start: new Date().toISOString().split("T")[0],
       notes: "",
     },
   });
 
   const handleFormSubmit = async (data: ClientFormData) => {
     const result = await onSubmit({
-      company: data.company,
-      contact: data.contact,
-      email: data.email,
-      phone: data.phone,
-      segment: data.segment,
-      package: data.package,
-      monthlyValue: data.monthlyValue,
+      space_id: client?.space_id || "",
+      name: data.name,
+      company: data.company || null,
+      email: data.email || null,
+      phone: data.phone || null,
+      segment: data.segment || null,
       status: data.status,
-      startDate: data.startDate,
-      notes: data.notes || "",
+      monthly_value: data.monthly_value || null,
+      contract_start: data.contract_start || null,
+      notes: data.notes || null,
+      created_by: client?.created_by || null,
     });
     
-    // Só fecha o dialog e reseta se a operação foi bem-sucedida
     if (result !== null && result !== undefined) {
       reset();
       onOpenChange(false);
     }
   };
 
-  const currentPackage = watch("package");
   const currentSegment = watch("segment");
   const currentStatus = watch("status");
 
@@ -82,27 +79,27 @@ export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormP
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="company">Empresa *</Label>
-              <Input id="company" {...register("company")} placeholder="Nome da empresa" maxLength={100} />
-              {errors.company && <p className="text-xs text-destructive">{errors.company.message}</p>}
+              <Label htmlFor="name">Nome do Contato *</Label>
+              <Input id="name" {...register("name")} placeholder="Nome do contato" maxLength={100} />
+              {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="contact">Contato *</Label>
-              <Input id="contact" {...register("contact")} placeholder="Nome do contato" maxLength={100} />
-              {errors.contact && <p className="text-xs text-destructive">{errors.contact.message}</p>}
+              <Label htmlFor="company">Empresa</Label>
+              <Input id="company" {...register("company")} placeholder="Nome da empresa" maxLength={100} />
+              {errors.company && <p className="text-xs text-destructive">{errors.company.message}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
+              <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" {...register("email")} placeholder="email@empresa.com" maxLength={255} />
               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="phone">Telefone *</Label>
+              <Label htmlFor="phone">Telefone</Label>
               <Input id="phone" {...register("phone")} placeholder="(11) 99999-9999" maxLength={20} />
               {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
             </div>
@@ -110,7 +107,7 @@ export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormP
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Segmento *</Label>
+              <Label>Segmento</Label>
               <Select value={currentSegment} onValueChange={(v) => setValue("segment", v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o segmento" />
@@ -123,36 +120,7 @@ export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormP
               </Select>
               {errors.segment && <p className="text-xs text-destructive">{errors.segment.message}</p>}
             </div>
-            
-            <div className="space-y-2">
-              <Label>Pacote *</Label>
-              <Select value={currentPackage} onValueChange={(v) => setValue("package", v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o pacote" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CLIENT_PACKAGES.map((pkg) => (
-                    <SelectItem key={pkg} value={pkg}>{pkg}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.package && <p className="text-xs text-destructive">{errors.package.message}</p>}
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="monthlyValue">Valor Mensal (R$) *</Label>
-              <Input 
-                id="monthlyValue" 
-                type="number" 
-                {...register("monthlyValue", { valueAsNumber: true })} 
-                placeholder="0"
-                min={0}
-              />
-              {errors.monthlyValue && <p className="text-xs text-destructive">{errors.monthlyValue.message}</p>}
-            </div>
-            
             <div className="space-y-2">
               <Label>Status *</Label>
               <Select value={currentStatus} onValueChange={(v) => setValue("status", v as ClientStatus)}>
@@ -160,18 +128,32 @@ export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormP
                   <SelectValue placeholder="Selecione o status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Ativo</SelectItem>
-                  <SelectItem value="inactive">Inativo</SelectItem>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="inativo">Inativo</SelectItem>
                   <SelectItem value="churn">Churn</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="startDate">Data de Início *</Label>
-            <Input id="startDate" type="date" {...register("startDate")} />
-            {errors.startDate && <p className="text-xs text-destructive">{errors.startDate.message}</p>}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="monthly_value">Valor Mensal (R$)</Label>
+              <Input 
+                id="monthly_value" 
+                type="number" 
+                {...register("monthly_value", { valueAsNumber: true })} 
+                placeholder="0"
+                min={0}
+              />
+              {errors.monthly_value && <p className="text-xs text-destructive">{errors.monthly_value.message}</p>}
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="contract_start">Data de Início</Label>
+              <Input id="contract_start" type="date" {...register("contract_start")} />
+              {errors.contract_start && <p className="text-xs text-destructive">{errors.contract_start.message}</p>}
+            </div>
           </div>
 
           <div className="space-y-2">

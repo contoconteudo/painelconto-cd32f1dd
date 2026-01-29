@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { Lead, LeadStage } from "@/types";
+import { useState, useEffect, useCallback } from "react";
+import { Lead, LeadStatus } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
@@ -11,9 +11,8 @@ export function useLeads() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
 
-  // Carregar leads do banco - COM FAIL-SAFE
+  // Carregar leads do banco
   const loadLeads = useCallback(async () => {
-    // Se não tem empresa selecionada, retorna vazio imediatamente
     if (!currentCompany) {
       setLeads([]);
       setIsLoading(false);
@@ -31,99 +30,94 @@ export function useLeads() {
 
       if (error) {
         console.error("Erro ao carregar leads:", error);
+        toast.error("Erro ao carregar leads.");
         return;
       }
 
       const mappedLeads: Lead[] = (data || []).map(l => ({
         id: l.id,
-        project_id: "default",
-        user_id: l.user_id,
-        company_id: l.space_id,
+        space_id: l.space_id,
         name: l.name,
         company: l.company,
-        email: l.email || "",
-        phone: l.phone || "",
-        value: l.value || 0,
-        temperature: l.temperature as Lead["temperature"],
-        origin: l.origin || "",
-        stage: l.stage as LeadStage,
-        lastContact: l.last_contact || "",
-        notes: l.notes || "",
-        createdAt: l.created_at?.split("T")[0] || "",
-        stageChangedAt: l.stage_changed_at || "",
+        email: l.email,
+        phone: l.phone,
+        status: l.status as LeadStatus,
+        source: l.source,
+        value: l.value,
+        notes: l.notes,
+        created_by: l.created_by,
+        created_at: l.created_at,
+        updated_at: l.updated_at,
       }));
 
       setLeads(mappedLeads);
     } catch (error) {
       console.error("Erro ao carregar leads:", error);
+      toast.error("Erro inesperado ao carregar leads.");
     } finally {
       setIsLoading(false);
     }
   }, [currentCompany]);
 
-  // Carregar leads na inicialização e quando mudar o espaço
   useEffect(() => {
     loadLeads();
   }, [loadLeads]);
 
   const addLead = useCallback(async (
-    data: Omit<Lead, "id" | "createdAt" | "stageChangedAt" | "project_id" | "user_id" | "company_id">
+    data: Omit<Lead, "id" | "created_at" | "updated_at">
   ): Promise<Lead | null> => {
-    if (!user?.id || !currentCompany) return null;
-
-    const now = new Date().toISOString();
-    
-    const { data: newLead, error } = await supabase
-      .from("leads")
-      .insert({
-        space_id: currentCompany,
-        user_id: user.id,
-        name: data.name,
-        company: data.company,
-        email: data.email,
-        phone: data.phone,
-        value: data.value,
-        temperature: data.temperature,
-        origin: data.origin,
-        stage: data.stage,
-        last_contact: data.lastContact || now.split("T")[0],
-        notes: data.notes,
-        stage_changed_at: now,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Erro ao criar lead:", error);
+    if (!user?.id) {
+      toast.error("Você precisa estar logado para criar um lead.");
       return null;
     }
+    
+    if (!currentCompany) {
+      toast.error("Nenhum espaço selecionado.");
+      return null;
+    }
+    
+    try {
+      const { data: newLead, error } = await supabase
+        .from("leads")
+        .insert({
+          space_id: currentCompany,
+          name: data.name,
+          company: data.company || null,
+          email: data.email || null,
+          phone: data.phone || null,
+          status: data.status || 'novo',
+          source: data.source || null,
+          value: data.value || null,
+          notes: data.notes || null,
+          created_by: user.id,
+        })
+        .select()
+        .single();
 
-    const mappedLead: Lead = {
-      id: newLead.id,
-      project_id: "default",
-      user_id: newLead.user_id,
-      company_id: newLead.space_id,
-      name: newLead.name,
-      company: newLead.company,
-      email: newLead.email || "",
-      phone: newLead.phone || "",
-      value: newLead.value || 0,
-      temperature: newLead.temperature as Lead["temperature"],
-      origin: newLead.origin || "",
-      stage: newLead.stage as LeadStage,
-      lastContact: newLead.last_contact || "",
-      notes: newLead.notes || "",
-      createdAt: newLead.created_at?.split("T")[0] || "",
-      stageChangedAt: newLead.stage_changed_at || "",
-    };
+      if (error) {
+        console.error("Erro ao criar lead:", error);
+        toast.error("Erro ao criar lead: " + (error.message || "Tente novamente."));
+        return null;
+      }
 
-    setLeads(prev => [mappedLead, ...prev]);
-    return mappedLead;
+      const mappedLead: Lead = {
+        ...newLead,
+        status: newLead.status as LeadStatus,
+      };
+
+      setLeads(prev => [mappedLead, ...prev]);
+      toast.success("Lead criado com sucesso!");
+      return mappedLead;
+    } catch (error) {
+      console.error("Erro inesperado ao criar lead:", error);
+      toast.error("Erro inesperado. Verifique sua conexão.");
+      return null;
+    }
   }, [user?.id, currentCompany]);
 
   const updateLead = useCallback(async (
     id: string, 
-    data: Partial<Omit<Lead, "id" | "createdAt" | "project_id" | "user_id" | "company_id">>
+    data: Partial<Omit<Lead, "id" | "created_at" | "updated_at">>
   ) => {
     const updateData: Record<string, unknown> = {};
     
@@ -131,13 +125,10 @@ export function useLeads() {
     if (data.company !== undefined) updateData.company = data.company;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.source !== undefined) updateData.source = data.source;
     if (data.value !== undefined) updateData.value = data.value;
-    if (data.temperature !== undefined) updateData.temperature = data.temperature;
-    if (data.origin !== undefined) updateData.origin = data.origin;
-    if (data.stage !== undefined) updateData.stage = data.stage;
-    if (data.lastContact !== undefined) updateData.last_contact = data.lastContact;
     if (data.notes !== undefined) updateData.notes = data.notes;
-    if (data.stageChangedAt !== undefined) updateData.stage_changed_at = data.stageChangedAt;
 
     const { error } = await supabase
       .from("leads")
@@ -172,46 +163,39 @@ export function useLeads() {
     toast.success("Lead excluído com sucesso!");
   }, []);
 
-  const moveLeadToStage = useCallback(async (id: string, stage: LeadStage) => {
-    const now = new Date().toISOString();
-    
+  const moveLeadToStatus = useCallback(async (id: string, status: LeadStatus) => {
     const { error } = await supabase
       .from("leads")
-      .update({ 
-        stage, 
-        last_contact: now.split("T")[0],
-        stage_changed_at: now 
-      })
+      .update({ status })
       .eq("id", id);
 
     if (error) {
       console.error("Erro ao mover lead:", error);
+      toast.error("Erro ao mover lead.");
       return;
     }
 
     setLeads(prev => prev.map(lead =>
-      lead.id === id
-        ? { ...lead, stage, lastContact: now.split("T")[0], stageChangedAt: now }
-        : lead
+      lead.id === id ? { ...lead, status } : lead
     ));
   }, []);
 
-  const getLeadsByStage = useCallback((stage: LeadStage) => {
-    return leads.filter(lead => lead.stage === stage);
+  const getLeadsByStatus = useCallback((status: LeadStatus) => {
+    return leads.filter(lead => lead.status === status);
   }, [leads]);
 
   const getPipelineStats = useCallback(() => {
-    const activeLeads = leads.filter(l => l.stage !== "lost");
-    const totalValue = activeLeads.reduce((sum, l) => sum + l.value, 0);
+    const activeLeads = leads.filter(l => l.status !== "perdido");
+    const totalValue = activeLeads.reduce((sum, l) => sum + (l.value || 0), 0);
     const proposalsSent = leads.filter(l => 
-      ["proposal", "negotiation", "won"].includes(l.stage)
+      ["proposta", "negociacao", "ganho"].includes(l.status)
     ).length;
-    const won = leads.filter(l => l.stage === "won");
+    const won = leads.filter(l => l.status === "ganho");
     const conversionRate = leads.length > 0 
       ? Math.round((won.length / leads.length) * 100) 
       : 0;
     const inNegotiation = leads.filter(l => 
-      l.stage !== "won" && l.stage !== "lost"
+      l.status !== "ganho" && l.status !== "perdido"
     ).length;
 
     return {
@@ -221,7 +205,7 @@ export function useLeads() {
       conversionRate,
       inNegotiation,
       wonCount: won.length,
-      wonValue: won.reduce((sum, l) => sum + l.value, 0),
+      wonValue: won.reduce((sum, l) => sum + (l.value || 0), 0),
     };
   }, [leads]);
 
@@ -231,8 +215,8 @@ export function useLeads() {
     addLead,
     updateLead,
     deleteLead,
-    moveLeadToStage,
-    getLeadsByStage,
+    moveLeadToStatus,
+    getLeadsByStatus,
     getPipelineStats,
     refreshLeads: loadLeads,
   };
