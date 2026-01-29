@@ -5,9 +5,9 @@
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 // import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
-import { DEMO_MODE, MOCK_ADMIN_USER, MOCK_SPACES } from "@/data/mockData";
+import { DEMO_MODE, MOCK_ADMIN_USER, demoStore } from "@/data/mockData";
 
 export type AppRole = "admin" | "gestor" | "comercial" | "analista";
 export type ModulePermission = "dashboard" | "crm" | "clients" | "objectives" | "strategy" | "settings" | "admin";
@@ -57,15 +57,15 @@ function getDemoSession(): UserSession {
     },
     role: MOCK_ADMIN_USER.role,
     modules: ALL_MODULES,
-    spaces: MOCK_ADMIN_USER.companies,
+    spaces: demoStore.spaces.map(s => s.id),
     isAdmin: true,
     permissionsState: "ok",
   };
 }
 
-// Espaços DEMO
+// Espaços DEMO - lidos do store
 function getDemoSpaces(): NormalizedSpace[] {
-  return MOCK_SPACES.map(s => ({
+  return demoStore.spaces.map(s => ({
     id: s.id,
     label: s.label,
     description: s.description,
@@ -76,6 +76,13 @@ function getDemoSpaces(): NormalizedSpace[] {
 
 export function useUserSession() {
   const queryClient = useQueryClient();
+
+  // Usar useSyncExternalStore para reagir a mudanças nos espaços do demoStore
+  const demoSpaces = useSyncExternalStore(
+    (callback) => demoStore.subscribe(callback),
+    () => demoStore.spaces,
+    () => demoStore.spaces
+  );
 
   // Query para sessão do usuário - MODO DEMO
   const sessionQuery = useQuery({
@@ -95,24 +102,17 @@ export function useUserSession() {
     retry: 0,
   });
 
-  // Query para espaços disponíveis - MODO DEMO
-  const spacesQuery = useQuery({
-    queryKey: SPACES_KEY,
-    queryFn: async (): Promise<NormalizedSpace[]> => {
-      // MODO DEMO: retorna espaços simulados
-      if (DEMO_MODE) {
-        return getDemoSpaces();
-      }
-      return getDemoSpaces();
-    },
-    enabled: sessionQuery.isSuccess && !!sessionQuery.data?.user,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 15 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    retry: 0,
-  });
+  // Espaços disponíveis - usando dados do store diretamente
+  const availableSpaces: NormalizedSpace[] = DEMO_MODE
+    ? demoSpaces.map(s => ({
+        id: s.id,
+        label: s.label,
+        description: s.description,
+        color: s.color,
+        icon: s.icon,
+      }))
+    : [];
 
-  const availableSpaces = spacesQuery.data || [];
   const allowedSpaces = sessionQuery.data?.isAdmin
     ? availableSpaces.map((s) => s.id)
     : (sessionQuery.data?.spaces || []);
@@ -122,25 +122,6 @@ export function useUserSession() {
     if (DEMO_MODE) return;
     
     // Código real comentado para DEMO
-    /*
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-          queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-          queryClient.invalidateQueries({ queryKey: SPACES_KEY });
-          
-          const mappedUser = session?.user ? {
-            id: session.user.id,
-            email: session.user.email,
-            full_name: session.user.user_metadata?.full_name,
-          } : null;
-          window.dispatchEvent(new CustomEvent("auth-user-changed", { detail: mappedUser }));
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-    */
   }, [queryClient]);
 
   // Escutar mudanças de espaços
@@ -180,7 +161,7 @@ export function useUserSession() {
   }, [queryClient]);
 
   const isLoading = sessionQuery.isLoading;
-  const spacesLoading = spacesQuery.isLoading && sessionQuery.isSuccess && !!sessionQuery.data?.user;
+  const spacesLoading = false; // No loading in DEMO mode
 
   return {
     // Dados da sessão

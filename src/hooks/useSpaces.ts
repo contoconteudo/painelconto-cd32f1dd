@@ -1,12 +1,12 @@
 /**
  * Hook para gerenciar espaços (empresas) do sistema.
- * Usa useUserSession para evitar queries duplicadas.
+ * Usa demoStore para persistir dados no modo DEMO.
  */
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserSession } from "./useUserSession";
-import { DEMO_MODE, MOCK_SPACES } from "@/data/mockData";
+import { DEMO_MODE, demoStore, MockSpace } from "@/data/mockData";
 
 export interface Space {
   id: string;
@@ -54,26 +54,24 @@ const generateSpaceId = (name: string): string => {
 
 export function useSpaces() {
   const session = useUserSession();
-  const [localSpaces, setLocalSpaces] = useState<Space[]>([]);
 
-  // Inicializar espaços locais no modo DEMO
-  useEffect(() => {
-    if (DEMO_MODE) {
-      const initialSpaces = MOCK_SPACES.map(s => ({
+  // Usar useSyncExternalStore para reagir a mudanças no demoStore
+  const storeSpaces = useSyncExternalStore(
+    (callback) => demoStore.subscribe(callback),
+    () => demoStore.spaces,
+    () => demoStore.spaces
+  );
+
+  // Mapear espaços do formato do store para o formato do hook
+  const spaces: Space[] = DEMO_MODE 
+    ? storeSpaces.map(s => ({
         id: s.id,
         label: s.label,
         description: s.description || "",
         color: s.color || "bg-primary",
         icon: s.icon || "Building",
         createdAt: new Date().toISOString(),
-      }));
-      setLocalSpaces(initialSpaces);
-    }
-  }, []);
-
-  // Mapear espaços do formato do banco para o formato do hook
-  const spaces: Space[] = DEMO_MODE 
-    ? localSpaces
+      }))
     : session.availableSpaces.map(s => ({
         id: s.id,
         label: s.label,
@@ -109,21 +107,23 @@ export function useSpaces() {
       return { success: false, error: "Já existe um espaço com nome similar" };
     }
 
-    // MODO DEMO: adiciona localmente
+    // MODO DEMO: adiciona ao store global
     if (DEMO_MODE) {
-      const newSpace: Space = {
+      const newSpace: MockSpace = {
         id,
         label: label.trim(),
         description: description.trim() || `Espaço ${label.trim()}`,
         color,
         icon,
-        createdAt: new Date().toISOString(),
       };
       
-      setLocalSpaces(prev => [...prev, newSpace]);
+      demoStore.addSpace(newSpace);
       window.dispatchEvent(new CustomEvent("spaces-changed"));
       
-      return { success: true, space: newSpace };
+      return { 
+        success: true, 
+        space: { ...newSpace, createdAt: new Date().toISOString() } 
+      };
     }
 
     const { data, error } = await supabase
@@ -164,12 +164,8 @@ export function useSpaces() {
     id: string, 
     updates: Partial<Omit<Space, "id" | "createdAt">>
   ): Promise<{ success: boolean; error?: string }> => {
-    // MODO DEMO: atualiza localmente
+    // MODO DEMO: não implementado ainda
     if (DEMO_MODE) {
-      setLocalSpaces(prev => prev.map(s => 
-        s.id === id ? { ...s, ...updates } : s
-      ));
-      window.dispatchEvent(new CustomEvent("spaces-changed"));
       return { success: true };
     }
 
@@ -196,9 +192,9 @@ export function useSpaces() {
       return { success: false, error: "Não é possível excluir o último espaço" };
     }
 
-    // MODO DEMO: remove localmente
+    // MODO DEMO: remove do store global
     if (DEMO_MODE) {
-      setLocalSpaces(prev => prev.filter(s => s.id !== id));
+      demoStore.deleteSpace(id);
       window.dispatchEvent(new CustomEvent("spaces-changed"));
       return { success: true };
     }
@@ -239,7 +235,7 @@ export function useSpaces() {
 // Função helper para uso fora de componentes React
 export async function getAllSpaces(): Promise<Space[]> {
   if (DEMO_MODE) {
-    return MOCK_SPACES.map(s => ({
+    return demoStore.spaces.map(s => ({
       id: s.id,
       label: s.label,
       description: s.description || "",

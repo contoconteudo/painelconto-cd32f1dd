@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from "react";
 import { Objective, ProgressLog, ObjectiveStatus } from "@/types";
 // import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
-import { DEMO_MODE, MOCK_OBJECTIVES, MOCK_LEADS, MOCK_CLIENTS } from "@/data/mockData";
+import { DEMO_MODE, demoStore } from "@/data/mockData";
 
 function calculateStatus(currentValue: number, targetValue: number, endDate: string | null): ObjectiveStatus {
   if (!endDate || !targetValue) return "em_andamento";
@@ -30,31 +30,32 @@ function getAutoValue(valueType: string | null, spaceId: string): number {
   if (!valueType || valueType === "none") return 0;
   
   if (DEMO_MODE) {
+    const leads = demoStore.leads.filter(l => l.space_id === spaceId);
+    const clients = demoStore.clients.filter(c => c.space_id === spaceId);
+
     switch (valueType) {
       case "crm_pipeline": {
         // Soma de leads em negociação (exceto ganho/perdido)
         const activeStatuses = ["novo", "contato", "reuniao_agendada", "reuniao_feita", "proposta", "negociacao"];
-        return MOCK_LEADS
-          .filter(l => l.space_id === spaceId && activeStatuses.includes(l.status))
+        return leads
+          .filter(l => activeStatuses.includes(l.status))
           .reduce((sum, l) => sum + (l.value || 0), 0);
       }
       case "crm_won": {
         // Soma de leads ganhos
-        return MOCK_LEADS
-          .filter(l => l.space_id === spaceId && l.status === "ganho")
+        return leads
+          .filter(l => l.status === "ganho")
           .reduce((sum, l) => sum + (l.value || 0), 0);
       }
       case "clients_mrr": {
         // MRR total de clientes ativos
-        return MOCK_CLIENTS
-          .filter(c => c.space_id === spaceId && c.status === "ativo")
+        return clients
+          .filter(c => c.status === "ativo")
           .reduce((sum, c) => sum + (c.monthly_value || 0), 0);
       }
       case "clients_count": {
         // Quantidade de clientes ativos
-        return MOCK_CLIENTS
-          .filter(c => c.space_id === spaceId && c.status === "ativo")
-          .length;
+        return clients.filter(c => c.status === "ativo").length;
       }
       default:
         return 0;
@@ -64,64 +65,58 @@ function getAutoValue(valueType: string | null, spaceId: string): number {
 }
 
 export function useObjectives() {
-  const [objectives, setObjectives] = useState<Objective[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { currentCompany } = useCompany();
   const { user } = useAuth();
 
-  // Carregar objetivos - MODO DEMO
-  const loadObjectives = useCallback(async () => {
-    setIsLoading(true);
+  // Usar useSyncExternalStore para reagir a mudanças no demoStore
+  const allObjectives = useSyncExternalStore(
+    (callback) => demoStore.subscribe(callback),
+    () => demoStore.objectives,
+    () => demoStore.objectives
+  );
 
-    // MODO DEMO: retorna dados mock filtrados por espaço
-    if (DEMO_MODE) {
-      const filteredObjectives = currentCompany 
-        ? MOCK_OBJECTIVES.filter(o => o.space_id === currentCompany)
-        : MOCK_OBJECTIVES;
-      
-      // Calcular valores automáticos para metas comerciais
-      const objectivesWithAutoValues = filteredObjectives.map(obj => {
-        if (obj.is_commercial && obj.value_type && obj.value_type !== "none") {
-          const autoValue = getAutoValue(obj.value_type, obj.space_id);
-          const newStatus = calculateStatus(autoValue, obj.target_value || 0, obj.end_date);
-          return { ...obj, current_value: autoValue, status: newStatus };
-        }
-        return obj;
-      });
-      
-      setObjectives(objectivesWithAutoValues);
-      setIsLoading(false);
-      return;
-    }
+  // Filtrar objetivos pelo espaço atual e calcular valores automáticos
+  const objectives = useMemo(() => {
+    if (!DEMO_MODE) return [];
+    
+    const filtered = currentCompany 
+      ? allObjectives.filter(o => o.space_id === currentCompany)
+      : allObjectives;
+    
+    // Calcular valores automáticos para metas comerciais
+    return filtered.map(obj => {
+      if (obj.is_commercial && obj.value_type && obj.value_type !== "none") {
+        const autoValue = getAutoValue(obj.value_type, obj.space_id);
+        const newStatus = calculateStatus(autoValue, obj.target_value || 0, obj.end_date);
+        return { ...obj, current_value: autoValue, status: newStatus };
+      }
+      return obj;
+    });
+  }, [allObjectives, currentCompany]);
 
-    // Código real comentado para DEMO
-    setIsLoading(false);
-  }, [currentCompany]);
-
-  useEffect(() => {
-    loadObjectives();
-  }, [loadObjectives]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const addObjective = useCallback(async (
     data: Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs" | "current_value" | "status"> & { is_commercial?: boolean; value_type?: string }
   ): Promise<Objective | null> => {
-    // MODO DEMO: adiciona localmente
     if (DEMO_MODE) {
       // Calcular valor inicial para metas automáticas
+      const spaceId = data.space_id || currentCompany || "conto";
       const initialValue = data.is_commercial && data.value_type 
-        ? getAutoValue(data.value_type, data.space_id || currentCompany || "conto")
+        ? getAutoValue(data.value_type, spaceId)
         : 0;
       
       const newObjective: Objective = {
         ...data,
         id: `obj-${Date.now()}`,
+        space_id: spaceId,
         current_value: initialValue,
         status: calculateStatus(initialValue, data.target_value || 0, data.end_date),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         progressLogs: [],
       };
-      setObjectives(prev => [newObjective, ...prev]);
+      demoStore.addObjective(newObjective);
       toast.success("Objetivo criado com sucesso! (DEMO)");
       return newObjective;
     }
@@ -134,10 +129,9 @@ export function useObjectives() {
     id: string, 
     data: Partial<Omit<Objective, "id" | "created_at" | "updated_at" | "progressLogs">>
   ) => {
-    // MODO DEMO: atualiza localmente
     if (DEMO_MODE) {
-      setObjectives(prev => prev.map(obj => {
-        if (obj.id !== id) return obj;
+      const obj = allObjectives.find(o => o.id === id);
+      if (obj) {
         const updated = { ...obj, ...data, updated_at: new Date().toISOString() };
         if (data.current_value !== undefined || data.target_value !== undefined || data.end_date !== undefined) {
           updated.status = calculateStatus(
@@ -146,17 +140,16 @@ export function useObjectives() {
             updated.end_date
           );
         }
-        return updated;
-      }));
+        demoStore.updateObjective(id, updated);
+      }
       toast.success("Objetivo atualizado! (DEMO)");
       return;
     }
-  }, []);
+  }, [allObjectives]);
 
   const deleteObjective = useCallback(async (id: string) => {
-    // MODO DEMO: remove localmente
     if (DEMO_MODE) {
-      setObjectives(prev => prev.filter(obj => obj.id !== id));
+      demoStore.deleteObjective(id);
       toast.success("Objetivo excluído! (DEMO)");
       return;
     }
@@ -168,7 +161,6 @@ export function useObjectives() {
     notes?: string,
     loggedAt?: string
   ): Promise<ProgressLog | null> => {
-    // MODO DEMO: adiciona log localmente
     if (DEMO_MODE) {
       const newLog: ProgressLog = {
         id: `log-${Date.now()}`,
@@ -179,50 +171,45 @@ export function useObjectives() {
         created_by: user?.id || "demo-admin-001",
       };
 
-      setObjectives(prev => prev.map(obj => {
-        if (obj.id !== objectiveId) return obj;
-        
+      const obj = allObjectives.find(o => o.id === objectiveId);
+      if (obj) {
         const newLogs = [...(obj.progressLogs || []), newLog];
         const computedCurrentValue = newLogs.reduce((sum, l) => sum + l.value, 0);
         const computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
 
-        return {
-          ...obj,
+        demoStore.updateObjective(objectiveId, {
           progressLogs: newLogs,
           current_value: computedCurrentValue,
           status: computedStatus,
-        };
-      }));
+        });
+      }
 
       toast.success("Progresso registrado! (DEMO)");
       return newLog;
     }
 
     return null;
-  }, [user?.id]);
+  }, [user?.id, allObjectives]);
 
   const deleteProgressLog = useCallback(async (objectiveId: string, logId: string) => {
-    // MODO DEMO: remove log localmente
     if (DEMO_MODE) {
-      setObjectives(prev => prev.map(obj => {
-        if (obj.id !== objectiveId) return obj;
-
+      const obj = allObjectives.find(o => o.id === objectiveId);
+      if (obj) {
         const filteredLogs = (obj.progressLogs || []).filter(l => l.id !== logId);
         const computedCurrentValue = filteredLogs.reduce((sum, l) => sum + l.value, 0);
         const computedStatus = calculateStatus(computedCurrentValue, obj.target_value || 0, obj.end_date);
 
-        return {
-          ...obj,
+        demoStore.updateObjective(objectiveId, {
           progressLogs: filteredLogs,
           current_value: computedCurrentValue,
           status: computedStatus,
-        };
-      }));
+        });
+      }
       
       toast.success("Registro removido! (DEMO)");
       return;
     }
-  }, []);
+  }, [allObjectives]);
 
   const getProgress = useCallback((objective: Objective) => {
     if (!objective.target_value) return 0;
@@ -248,6 +235,6 @@ export function useObjectives() {
     deleteProgressLog,
     getProgress,
     getStats,
-    refreshObjectives: loadObjectives,
+    refreshObjectives: () => {},
   };
 }

@@ -1,6 +1,9 @@
 /**
  * Dados Mock para modo DEMO
  * Usados enquanto o banco de dados está sendo reconfigurado.
+ * 
+ * IMPORTANTE: Este módulo mantém estado global para persistir dados
+ * durante a navegação no modo DEMO.
  */
 
 import type { Lead, Client, Objective, NPSRecord, ProgressLog, LeadStatus, ClientStatus, ObjectiveStatus } from "@/types";
@@ -21,6 +24,14 @@ export interface MockUser {
   companies: CompanyAccess[];
 }
 
+export interface MockSpace {
+  id: string;
+  label: string;
+  description: string;
+  color: string;
+  icon: string;
+}
+
 // Usuário admin simulado
 export const MOCK_ADMIN_USER: MockUser = {
   id: "demo-admin-001",
@@ -31,16 +42,18 @@ export const MOCK_ADMIN_USER: MockUser = {
   companies: ["conto", "amplia"],
 };
 
-// Espaços disponíveis
-export const MOCK_SPACES = [
+// ============================================
+// DADOS INICIAIS
+// ============================================
+
+// Espaços iniciais
+const INITIAL_SPACES: MockSpace[] = [
   { id: "conto", label: "Conto", description: "Agência Conto", color: "bg-blue-500", icon: "Building" },
   { id: "amplia", label: "Amplia", description: "Amplia Marketing", color: "bg-purple-500", icon: "Rocket" },
 ];
 
-// ============================================
-// LEADS MOCK
-// ============================================
-export const MOCK_LEADS: Lead[] = [
+// Leads iniciais
+const INITIAL_LEADS: Lead[] = [
   {
     id: "lead-001",
     space_id: "conto",
@@ -107,10 +120,8 @@ export const MOCK_LEADS: Lead[] = [
   },
 ];
 
-// ============================================
-// CLIENTS MOCK
-// ============================================
-export const MOCK_CLIENTS: Client[] = [
+// Clients iniciais
+const INITIAL_CLIENTS: Client[] = [
   {
     id: "client-001",
     space_id: "conto",
@@ -192,10 +203,8 @@ export const MOCK_CLIENTS: Client[] = [
   },
 ];
 
-// ============================================
-// OBJECTIVES MOCK
-// ============================================
-export const MOCK_OBJECTIVES: Objective[] = [
+// Objectives iniciais
+const INITIAL_OBJECTIVES: Objective[] = [
   {
     id: "obj-001",
     space_id: "conto",
@@ -264,6 +273,113 @@ export const MOCK_OBJECTIVES: Objective[] = [
 ];
 
 // ============================================
+// ESTADO GLOBAL MUTÁVEL PARA MODO DEMO
+// Isso permite persistir dados entre navegações
+// ============================================
+
+class DemoDataStore {
+  private _spaces: MockSpace[] = [...INITIAL_SPACES];
+  private _leads: Lead[] = [...INITIAL_LEADS];
+  private _clients: Client[] = [...INITIAL_CLIENTS];
+  private _objectives: Objective[] = [...INITIAL_OBJECTIVES];
+  private _listeners: Set<() => void> = new Set();
+
+  // Espaços
+  get spaces(): MockSpace[] {
+    return this._spaces;
+  }
+
+  addSpace(space: MockSpace) {
+    this._spaces = [...this._spaces, space];
+    this.notifyListeners();
+  }
+
+  deleteSpace(id: string) {
+    this._spaces = this._spaces.filter(s => s.id !== id);
+    this.notifyListeners();
+  }
+
+  // Leads
+  get leads(): Lead[] {
+    return this._leads;
+  }
+
+  addLead(lead: Lead) {
+    this._leads = [lead, ...this._leads];
+    this.notifyListeners();
+  }
+
+  updateLead(id: string, data: Partial<Lead>) {
+    this._leads = this._leads.map(l => l.id === id ? { ...l, ...data } : l);
+    this.notifyListeners();
+  }
+
+  deleteLead(id: string) {
+    this._leads = this._leads.filter(l => l.id !== id);
+    this.notifyListeners();
+  }
+
+  // Clients
+  get clients(): Client[] {
+    return this._clients;
+  }
+
+  addClient(client: Client) {
+    this._clients = [client, ...this._clients];
+    this.notifyListeners();
+  }
+
+  updateClient(id: string, data: Partial<Client>) {
+    this._clients = this._clients.map(c => c.id === id ? { ...c, ...data } : c);
+    this.notifyListeners();
+  }
+
+  deleteClient(id: string) {
+    this._clients = this._clients.filter(c => c.id !== id);
+    this.notifyListeners();
+  }
+
+  // Objectives
+  get objectives(): Objective[] {
+    return this._objectives;
+  }
+
+  addObjective(objective: Objective) {
+    this._objectives = [objective, ...this._objectives];
+    this.notifyListeners();
+  }
+
+  updateObjective(id: string, data: Partial<Objective>) {
+    this._objectives = this._objectives.map(o => o.id === id ? { ...o, ...data } : o);
+    this.notifyListeners();
+  }
+
+  deleteObjective(id: string) {
+    this._objectives = this._objectives.filter(o => o.id !== id);
+    this.notifyListeners();
+  }
+
+  // Listener system for React components
+  subscribe(listener: () => void) {
+    this._listeners.add(listener);
+    return () => this._listeners.delete(listener);
+  }
+
+  private notifyListeners() {
+    this._listeners.forEach(listener => listener());
+  }
+}
+
+// Instância singleton do store
+export const demoStore = new DemoDataStore();
+
+// Exportar referências para compatibilidade
+export const MOCK_SPACES = INITIAL_SPACES;
+export const MOCK_LEADS = INITIAL_LEADS;
+export const MOCK_CLIENTS = INITIAL_CLIENTS;
+export const MOCK_OBJECTIVES = INITIAL_OBJECTIVES;
+
+// ============================================
 // PERMISSÕES - Módulos disponíveis para seleção
 // ============================================
 export const ALL_MODULES: { id: ModulePermission; label: string; description: string }[] = [
@@ -292,5 +408,5 @@ export const MOCK_STORAGE_KEYS = {
 };
 
 // Função placeholder para obter empresas
-export const getCompanies = () => MOCK_SPACES;
-export const ALL_COMPANIES = MOCK_SPACES;
+export const getCompanies = () => demoStore.spaces;
+export const ALL_COMPANIES = INITIAL_SPACES;
