@@ -39,9 +39,9 @@ export default function Login() {
       setTimeout(() => {
         window.location.replace("/");
       }, 100);
-    } catch (error: any) {
-      console.error("Erro de autenticação:", error);
-      toast.error(error.message || "Erro ao processar solicitação");
+    } catch (error: unknown) {
+      const err = error as Error;
+      toast.error(err.message || "Erro ao processar solicitação");
       setIsLoading(false);
     }
   };

@@ -10,8 +10,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     try {
       const item = window.localStorage.getItem(key);
       return item ? (JSON.parse(item) as T) : initialValue;
-    } catch (error) {
-      console.warn(`Error reading localStorage key "${key}":`, error);
+    } catch {
       return initialValue;
     }
   }, [initialValue, key]);
@@ -35,8 +34,8 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
           // Dispatch custom event so other components can react
           window.dispatchEvent(new CustomEvent("local-storage-update", { detail: { key } }));
         }
-      } catch (error) {
-        console.warn(`Error setting localStorage key "${key}":`, error);
+      } catch {
+        // Silently handle localStorage errors
       }
     },
     [key]

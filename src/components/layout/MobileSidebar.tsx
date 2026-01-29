@@ -79,8 +79,9 @@ export function MobileSidebar() {
       toast.success("Logout realizado com sucesso!");
       navigate("/login");
       setOpen(false);
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao fazer logout");
+    } catch (error: unknown) {
+      const err = error as Error;
+      toast.error(err.message || "Erro ao fazer logout");
     }
   };
 
