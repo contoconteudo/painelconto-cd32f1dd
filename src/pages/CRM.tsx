@@ -370,7 +370,7 @@ export default function CRM() {
       </div>
 
       {/* Desktop Kanban Board */}
-      <div className="hidden md:flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
+      <div className="hidden md:flex gap-4 overflow-x-auto overflow-y-auto pb-4 max-h-[calc(100vh-280px)]">
         {visiblePipelineStatuses.map((statusKey) => {
           const config = LEAD_STATUSES[statusKey];
           const statusLeads = getFilteredLeadsByStatus(statusKey);
@@ -395,7 +395,7 @@ export default function CRM() {
               {/* Cards */}
               <div 
                 className={cn(
-                  "space-y-2 min-h-[200px] p-2 rounded-lg bg-muted/30 transition-all duration-200",
+                  "space-y-2 min-h-[200px] max-h-[calc(100vh-360px)] overflow-y-auto p-2 rounded-lg bg-muted/30 transition-all duration-200",
                   dragOverStatus === statusKey && "ring-2 ring-primary bg-primary/10"
                 )}
                 onDragOver={(e) => handleDragOver(e, statusKey)}
