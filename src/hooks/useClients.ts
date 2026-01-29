@@ -112,52 +112,68 @@ export function useClients() {
   const addClient = useCallback(async (
     data: Omit<Client, "id" | "project_id" | "user_id" | "company_id" | "npsHistory">
   ): Promise<Client | null> => {
-    if (!user?.id || !currentCompany) return null;
-
-    const { data: newClient, error } = await supabase
-      .from("clients")
-      .insert({
-        space_id: currentCompany,
-        user_id: user.id,
-        company: data.company,
-        contact: data.contact,
-        email: data.email,
-        phone: data.phone,
-        segment: data.segment,
-        package: data.package,
-        monthly_value: data.monthlyValue,
-        status: data.status,
-        start_date: data.startDate,
-        notes: data.notes,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Erro ao criar cliente:", error);
+    if (!user?.id) {
+      toast.error("Você precisa estar logado para criar um cliente.");
+      return null;
+    }
+    
+    if (!currentCompany) {
+      toast.error("Nenhum espaço selecionado. Selecione um espaço no menu.");
       return null;
     }
 
-    const mappedClient: Client = {
-      id: newClient.id,
-      project_id: "default",
-      user_id: newClient.user_id,
-      company_id: newClient.space_id,
-      company: newClient.company,
-      contact: newClient.contact,
-      email: newClient.email || "",
-      phone: newClient.phone || "",
-      segment: newClient.segment || "",
-      package: newClient.package || "",
-      monthlyValue: newClient.monthly_value || 0,
-      status: newClient.status as ClientStatus,
-      npsHistory: [],
-      startDate: newClient.start_date || "",
-      notes: newClient.notes || "",
-    };
+    try {
+      const { data: newClient, error } = await supabase
+        .from("clients")
+        .insert({
+          space_id: currentCompany,
+          user_id: user.id,
+          company: data.company,
+          contact: data.contact,
+          email: data.email,
+          phone: data.phone,
+          segment: data.segment,
+          package: data.package,
+          monthly_value: data.monthlyValue,
+          status: data.status,
+          start_date: data.startDate,
+          notes: data.notes,
+        })
+        .select()
+        .single();
 
-    setClients(prev => [mappedClient, ...prev]);
-    return mappedClient;
+      if (error) {
+        console.error("Erro ao criar cliente:", error);
+        toast.error("Erro ao criar cliente: " + (error.message || "Tente novamente."));
+        return null;
+      }
+
+      const mappedClient: Client = {
+        id: newClient.id,
+        project_id: "default",
+        user_id: newClient.user_id,
+        company_id: newClient.space_id,
+        company: newClient.company,
+        contact: newClient.contact,
+        email: newClient.email || "",
+        phone: newClient.phone || "",
+        segment: newClient.segment || "",
+        package: newClient.package || "",
+        monthlyValue: newClient.monthly_value || 0,
+        status: newClient.status as ClientStatus,
+        npsHistory: [],
+        startDate: newClient.start_date || "",
+        notes: newClient.notes || "",
+      };
+
+      setClients(prev => [mappedClient, ...prev]);
+      toast.success("Cliente criado com sucesso!");
+      return mappedClient;
+    } catch (error) {
+      console.error("Erro inesperado ao criar cliente:", error);
+      toast.error("Erro inesperado. Verifique sua conexão.");
+      return null;
+    }
   }, [user?.id, currentCompany]);
 
   const updateClient = useCallback(async (

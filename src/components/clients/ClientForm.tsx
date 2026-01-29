@@ -14,7 +14,7 @@ interface ClientFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client?: Client | null;
-  onSubmit: (data: Omit<Client, "id" | "npsHistory" | "project_id" | "user_id" | "company_id">) => void;
+  onSubmit: (data: Omit<Client, "id" | "npsHistory" | "project_id" | "user_id" | "company_id">) => Promise<unknown> | void;
 }
 
 export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormProps) {
@@ -47,8 +47,8 @@ export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormP
     },
   });
 
-  const handleFormSubmit = (data: ClientFormData) => {
-    onSubmit({
+  const handleFormSubmit = async (data: ClientFormData) => {
+    const result = await onSubmit({
       company: data.company,
       contact: data.contact,
       email: data.email,
@@ -60,8 +60,12 @@ export function ClientForm({ open, onOpenChange, client, onSubmit }: ClientFormP
       startDate: data.startDate,
       notes: data.notes || "",
     });
-    reset();
-    onOpenChange(false);
+    
+    // Só fecha o dialog e reseta se a operação foi bem-sucedida
+    if (result !== null && result !== undefined) {
+      reset();
+      onOpenChange(false);
+    }
   };
 
   const currentPackage = watch("package");
