@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Lead, LeadStatus, LeadTemperature } from "@/types";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client"; // Comentado para DEMO
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
+import { DEMO_MODE, MOCK_LEADS } from "@/data/mockData";
 
 export function useLeads() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -11,22 +12,32 @@ export function useLeads() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
 
-  // Carregar leads do banco
+  // Carregar leads - MODO DEMO
   const loadLeads = useCallback(async () => {
+    setIsLoading(true);
+
+    // MODO DEMO: retorna dados mock filtrados por espaço
+    if (DEMO_MODE) {
+      const filteredLeads = currentCompany 
+        ? MOCK_LEADS.filter(l => l.space_id === currentCompany)
+        : MOCK_LEADS;
+      setLeads(filteredLeads);
+      setIsLoading(false);
+      return;
+    }
+
+    // Código real comentado para DEMO
+    /*
     if (!currentCompany) {
       setLeads([]);
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-
     try {
       const { data, error } = await supabase
         .from("leads")
-        .select(
-          "id, space_id, name, company, email, phone, status, source, value, temperature, notes, created_by, created_at, updated_at"
-        )
+        .select("id, space_id, name, company, email, phone, status, source, value, temperature, notes, created_by, created_at, updated_at")
         .eq("space_id", currentCompany)
         .order("created_at", { ascending: false });
 
@@ -60,6 +71,8 @@ export function useLeads() {
     } finally {
       setIsLoading(false);
     }
+    */
+    setIsLoading(false);
   }, [currentCompany]);
 
   useEffect(() => {
@@ -69,120 +82,54 @@ export function useLeads() {
   const addLead = useCallback(async (
     data: Omit<Lead, "id" | "created_at" | "updated_at">
   ): Promise<Lead | null> => {
-    if (!user?.id) {
-      toast.error("Você precisa estar logado para criar um lead.");
-      return null;
-    }
-    
-    if (!currentCompany) {
-      toast.error("Nenhum espaço selecionado.");
-      return null;
-    }
-    
-    try {
-      const { data: newLead, error } = await supabase
-        .from("leads")
-        .insert({
-          space_id: currentCompany,
-          name: data.name,
-          company: data.company || null,
-          email: data.email || null,
-          phone: data.phone || null,
-          status: data.status || 'novo',
-          source: data.source || null,
-          value: data.value || null,
-          temperature: data.temperature || 'warm',
-          notes: data.notes || null,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Erro ao criar lead:", error);
-        toast.error("Erro ao criar lead: " + (error.message || "Tente novamente."));
-        return null;
-      }
-
-      const mappedLead: Lead = {
-        ...newLead,
-        status: newLead.status as LeadStatus,
+    // MODO DEMO: adiciona localmente
+    if (DEMO_MODE) {
+      const newLead: Lead = {
+        ...data,
+        id: `lead-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
-
-      setLeads(prev => [mappedLead, ...prev]);
-      toast.success("Lead criado com sucesso!");
-      return mappedLead;
-    } catch (error) {
-      console.error("Erro inesperado ao criar lead:", error);
-      toast.error("Erro inesperado. Verifique sua conexão.");
-      return null;
+      setLeads(prev => [newLead, ...prev]);
+      toast.success("Lead criado com sucesso! (DEMO)");
+      return newLead;
     }
-  }, [user?.id, currentCompany]);
+
+    toast.error("Modo produção desativado.");
+    return null;
+  }, []);
 
   const updateLead = useCallback(async (
     id: string, 
     data: Partial<Omit<Lead, "id" | "created_at" | "updated_at">>
   ) => {
-    const updateData: Record<string, unknown> = {};
-    
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.company !== undefined) updateData.company = data.company;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.source !== undefined) updateData.source = data.source;
-    if (data.value !== undefined) updateData.value = data.value;
-    if (data.temperature !== undefined) updateData.temperature = data.temperature;
-    if (data.notes !== undefined) updateData.notes = data.notes;
-
-    const { error } = await supabase
-      .from("leads")
-      .update(updateData)
-      .eq("id", id);
-
-    if (error) {
-      console.error("Erro ao atualizar lead:", error);
-      toast.error("Erro ao atualizar lead. Tente novamente.");
+    // MODO DEMO: atualiza localmente
+    if (DEMO_MODE) {
+      setLeads(prev => prev.map(lead => 
+        lead.id === id ? { ...lead, ...data, updated_at: new Date().toISOString() } : lead
+      ));
+      toast.success("Lead atualizado! (DEMO)");
       return;
     }
-
-    setLeads(prev => prev.map(lead => 
-      lead.id === id ? { ...lead, ...data } : lead
-    ));
-    toast.success("Lead atualizado com sucesso!");
   }, []);
 
   const deleteLead = useCallback(async (id: string) => {
-    const { error } = await supabase
-      .from("leads")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      console.error("Erro ao excluir lead:", error);
-      toast.error("Erro ao excluir lead. Tente novamente.");
+    // MODO DEMO: remove localmente
+    if (DEMO_MODE) {
+      setLeads(prev => prev.filter(lead => lead.id !== id));
+      toast.success("Lead excluído! (DEMO)");
       return;
     }
-
-    setLeads(prev => prev.filter(lead => lead.id !== id));
-    toast.success("Lead excluído com sucesso!");
   }, []);
 
   const moveLeadToStatus = useCallback(async (id: string, status: LeadStatus) => {
-    const { error } = await supabase
-      .from("leads")
-      .update({ status })
-      .eq("id", id);
-
-    if (error) {
-      console.error("Erro ao mover lead:", error);
-      toast.error("Erro ao mover lead.");
+    // MODO DEMO: atualiza status localmente
+    if (DEMO_MODE) {
+      setLeads(prev => prev.map(lead =>
+        lead.id === id ? { ...lead, status } : lead
+      ));
       return;
     }
-
-    setLeads(prev => prev.map(lead =>
-      lead.id === id ? { ...lead, status } : lead
-    ));
   }, []);
 
   const getLeadsByStatus = useCallback((status: LeadStatus) => {
