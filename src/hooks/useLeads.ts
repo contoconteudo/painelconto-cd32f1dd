@@ -1,57 +1,44 @@
 /**
  * Hook para gerenciar leads do CRM.
- * Integra com Supabase para CRUD de leads.
+ * Integra diretamente com Supabase.
  */
 
-import { useState, useCallback, useMemo, useSyncExternalStore } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Lead, LeadStatus } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
-import { DEMO_MODE, demoStore } from "@/data/mockData";
+
+const QUERY_KEY = "leads";
 
 export function useLeads() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  // DEMO: usar useSyncExternalStore para reagir a mudanças no demoStore
-  const demoLeads = useSyncExternalStore(
-    (callback) => demoStore.subscribe(callback),
-    () => demoStore.leads,
-    () => demoStore.leads
-  );
+  // Query para buscar leads do espaço atual
+  const { data: leads = [], isLoading } = useQuery({
+    queryKey: [QUERY_KEY, currentCompany],
+    queryFn: async () => {
+      if (!currentCompany) return [];
+      
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("space_id", currentCompany)
+        .order("created_at", { ascending: false });
 
-  // Filtrar leads pelo espaço atual
-  const leads = useMemo(() => {
-    if (DEMO_MODE) {
-      return currentCompany 
-        ? demoLeads.filter(l => l.space_id === currentCompany)
-        : demoLeads;
-    }
-    // PRODUÇÃO: dados seriam carregados via query
-    return [];
-  }, [demoLeads, currentCompany]);
+      if (error) throw error;
+      return data as Lead[];
+    },
+    enabled: !!currentCompany,
+  });
 
-  const addLead = useCallback(async (
-    data: Omit<Lead, "id" | "created_at" | "updated_at">
-  ): Promise<Lead | null> => {
-    if (DEMO_MODE) {
-      const newLead: Lead = {
-        ...data,
-        id: `lead-${Date.now()}`,
-        space_id: data.space_id || currentCompany || "",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      demoStore.addLead(newLead);
-      toast.success("Lead criado com sucesso!");
-      return newLead;
-    }
-
-    setIsLoading(true);
-    try {
+  // Mutation para adicionar lead
+  const addMutation = useMutation({
+    mutationFn: async (data: Omit<Lead, "id" | "created_at" | "updated_at">) => {
       const { data: newLead, error } = await supabase
         .from("leads")
         .insert({
@@ -63,82 +50,82 @@ export function useLeads() {
         .single();
 
       if (error) throw error;
-      toast.success("Lead criado com sucesso!");
       return newLead as Lead;
-    } catch (error: any) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
+      toast.success("Lead criado com sucesso!");
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao criar lead: " + error.message);
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentCompany, user?.id]);
+    },
+  });
 
-  const updateLead = useCallback(async (
-    id: string, 
-    data: Partial<Omit<Lead, "id" | "created_at" | "updated_at">>
-  ) => {
-    if (DEMO_MODE) {
-      demoStore.updateLead(id, { ...data, updated_at: new Date().toISOString() });
-      toast.success("Lead atualizado!");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
+  // Mutation para atualizar lead
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Lead> }) => {
       const { error } = await supabase
         .from("leads")
         .update({ ...data, updated_at: new Date().toISOString() })
         .eq("id", id);
 
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
       toast.success("Lead atualizado!");
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao atualizar lead: " + error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+  });
 
-  const deleteLead = useCallback(async (id: string) => {
-    if (DEMO_MODE) {
-      demoStore.deleteLead(id);
-      toast.success("Lead excluído!");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
+  // Mutation para deletar lead
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("leads")
         .delete()
         .eq("id", id);
 
       if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY, currentCompany] });
       toast.success("Lead excluído!");
-    } catch (error: any) {
+    },
+    onError: (error: Error) => {
       toast.error("Erro ao excluir lead: " + error.message);
-    } finally {
-      setIsLoading(false);
+    },
+  });
+
+  const addLead = useCallback(async (
+    data: Omit<Lead, "id" | "created_at" | "updated_at">
+  ): Promise<Lead | null> => {
+    try {
+      return await addMutation.mutateAsync(data);
+    } catch {
+      return null;
     }
-  }, []);
+  }, [addMutation]);
+
+  const updateLead = useCallback(async (
+    id: string, 
+    data: Partial<Omit<Lead, "id" | "created_at" | "updated_at">>
+  ) => {
+    await updateMutation.mutateAsync({ id, data });
+  }, [updateMutation]);
+
+  const deleteLead = useCallback(async (id: string) => {
+    await deleteMutation.mutateAsync(id);
+  }, [deleteMutation]);
 
   const moveLeadToStatus = useCallback(async (leadId: string, newStatus: LeadStatus) => {
-    if (DEMO_MODE) {
-      demoStore.updateLead(leadId, { status: newStatus, updated_at: new Date().toISOString() });
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from("leads")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq("id", leadId);
-
-      if (error) throw error;
-    } catch (error: any) {
-      toast.error("Erro ao mover lead: " + error.message);
-    }
-  }, []);
+    await updateMutation.mutateAsync({ 
+      id: leadId, 
+      data: { status: newStatus } 
+    });
+  }, [updateMutation]);
 
   const getLeadsByStatus = useCallback((status: LeadStatus) => {
     return leads.filter(lead => lead.status === status);

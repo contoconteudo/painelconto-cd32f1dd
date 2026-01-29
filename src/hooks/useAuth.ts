@@ -1,13 +1,12 @@
 /**
  * Hook para autenticação de usuários.
- * Integra com Supabase Auth para login, cadastro e logout.
+ * Integra com Supabase Auth.
  */
 
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserSession } from "./useUserSession";
 import { toast } from "sonner";
-import { DEMO_MODE } from "@/data/mockData";
 
 export interface AuthUser {
   id: string;
@@ -25,12 +24,6 @@ export function useAuth() {
   } : null;
 
   const signIn = useCallback(async (email: string, password: string): Promise<void> => {
-    if (DEMO_MODE) {
-      toast.success("Login simulado! (DEMO)");
-      window.location.replace("/");
-      return;
-    }
-
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -45,11 +38,6 @@ export function useAuth() {
   }, []);
 
   const signUp = useCallback(async (email: string, password: string, fullName?: string): Promise<void> => {
-    if (DEMO_MODE) {
-      toast.success("Cadastro simulado! (DEMO)");
-      return;
-    }
-
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -70,22 +58,11 @@ export function useAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
-    if (DEMO_MODE) {
-      toast.success("Logout simulado! (DEMO)");
-      window.location.replace("/login");
-      return;
-    }
-
     await supabase.auth.signOut();
     window.location.replace("/login");
   }, []);
 
   const resetPassword = useCallback(async (email: string): Promise<void> => {
-    if (DEMO_MODE) {
-      toast.success("Email de recuperação enviado! (DEMO)");
-      return;
-    }
-
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
