@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Search, Plus, Building2, Mail, Phone, MoreHorizontal, Star, X, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -136,7 +136,7 @@ export default function Clientes() {
     }
   };
 
-  const handleAddNPSFromDetail = async (record: { score: number; feedback?: string }) => {
+  const handleAddNPSFromDetail = useCallback(async (record: { score: number; feedback?: string; month: number; year: number }) => {
     if (!selectedClient) return;
     const created = await addNPSRecord(selectedClient.id, record);
     if (!created) return;
@@ -149,7 +149,7 @@ export default function Clientes() {
         npsHistory: [...(prev.npsHistory || []), created],
       };
     });
-  };
+  }, [selectedClient, addNPSRecord]);
 
   const openClientDetail = (client: Client) => {
     setSelectedClient(client);

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Plus, Phone, Mail, Filter, X, ChevronRight } from "lucide-react";
+import { Plus, Phone, Mail, Filter, X, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useLeads } from "@/hooks/useLeads";
@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { LEAD_STATUSES, LEAD_SOURCES, PIPELINE_STATUSES } from "@/lib/constants";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -142,6 +144,8 @@ export default function CRM() {
   // Filters
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
+  const [showWonLeads, setShowWonLeads] = useState(true);
+  const [showLostLeads, setShowLostLeads] = useState(true);
 
   // Get unique sources from leads
   const uniqueSources = useMemo(() => {
@@ -150,12 +154,23 @@ export default function CRM() {
   }, [leads]);
 
   // Check if any filter is active
-  const hasActiveFilters = sourceFilter !== "all" || statusFilter !== "all";
+  const hasActiveFilters = sourceFilter !== "all" || statusFilter !== "all" || !showWonLeads || !showLostLeads;
 
   const clearFilters = () => {
     setSourceFilter("all");
     setStatusFilter("all");
+    setShowWonLeads(true);
+    setShowLostLeads(true);
   };
+
+  // Filtrar status visíveis baseado nos toggles
+  const visiblePipelineStatuses = useMemo(() => {
+    return PIPELINE_STATUSES.filter(status => {
+      if (status === "ganho" && !showWonLeads) return false;
+      if (status === "perdido" && !showLostLeads) return false;
+      return true;
+    });
+  }, [showWonLeads, showLostLeads]);
 
   const handleDragStart = (leadId: string) => {
     setDraggedLeadId(leadId);
@@ -216,9 +231,17 @@ export default function CRM() {
     if (statusFilter !== "all") {
       filtered = filtered.filter(lead => lead.status === statusFilter);
     }
+
+    // Aplicar filtros de ganho/perdido
+    if (!showWonLeads) {
+      filtered = filtered.filter(lead => lead.status !== "ganho");
+    }
+    if (!showLostLeads) {
+      filtered = filtered.filter(lead => lead.status !== "perdido");
+    }
     
     return filtered;
-  }, [leads, sourceFilter, statusFilter]);
+  }, [leads, sourceFilter, statusFilter, showWonLeads, showLostLeads]);
 
   const handleAddClick = (status: LeadStatus) => {
     setCreateFormStatus(status);
@@ -260,43 +283,73 @@ export default function CRM() {
       </div>
 
       {/* Filters - Responsive */}
-      <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-4">
-        <Filter className="h-4 w-4 text-muted-foreground hidden sm:block" />
-        
-        {/* Status filter */}
-        <Select 
-          value={statusFilter} 
-          onValueChange={(value) => setStatusFilter(value as LeadStatus | "all")}
-        >
-          <SelectTrigger className="w-[120px] md:w-[140px] h-9 text-xs md:text-sm">
-            <SelectValue placeholder="Etapa" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas etapas</SelectItem>
-            {PIPELINE_STATUSES.map(status => (
-              <SelectItem key={status} value={status}>{LEAD_STATUSES[status]?.name || status}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <Select value={sourceFilter} onValueChange={setSourceFilter}>
-          <SelectTrigger className="w-[100px] md:w-[160px] h-9 text-xs md:text-sm">
-            <SelectValue placeholder="Origem" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {uniqueSources.map((source) => (
-              <SelectItem key={source} value={source}>{source}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          <Filter className="h-4 w-4 text-muted-foreground hidden sm:block" />
+          
+          {/* Status filter */}
+          <Select 
+            value={statusFilter} 
+            onValueChange={(value) => setStatusFilter(value as LeadStatus | "all")}
+          >
+            <SelectTrigger className="w-[120px] md:w-[140px] h-9 text-xs md:text-sm">
+              <SelectValue placeholder="Etapa" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas etapas</SelectItem>
+              {PIPELINE_STATUSES.map(status => (
+                <SelectItem key={status} value={status}>{LEAD_STATUSES[status]?.name || status}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Select value={sourceFilter} onValueChange={setSourceFilter}>
+            <SelectTrigger className="w-[100px] md:w-[160px] h-9 text-xs md:text-sm">
+              <SelectValue placeholder="Origem" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {uniqueSources.map((source) => (
+                <SelectItem key={source} value={source}>{source}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 px-2 text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4" />
-            <span className="hidden sm:inline ml-1">Limpar</span>
-          </Button>
-        )}
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 px-2 text-muted-foreground hover:text-foreground">
+              <X className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1">Limpar</span>
+            </Button>
+          )}
+        </div>
+
+        {/* Show/Hide Won and Lost Leads */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="show-won"
+              checked={showWonLeads}
+              onCheckedChange={setShowWonLeads}
+              className="h-5 w-9"
+            />
+            <Label htmlFor="show-won" className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1.5">
+              {showWonLeads ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              Ganhos
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="show-lost"
+              checked={showLostLeads}
+              onCheckedChange={setShowLostLeads}
+              className="h-5 w-9"
+            />
+            <Label htmlFor="show-lost" className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1.5">
+              {showLostLeads ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              Perdidos
+            </Label>
+          </div>
+        </div>
       </div>
 
       {/* Mobile List View */}
@@ -318,7 +371,7 @@ export default function CRM() {
 
       {/* Desktop Kanban Board */}
       <div className="hidden md:flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
-        {PIPELINE_STATUSES.map((statusKey) => {
+        {visiblePipelineStatuses.map((statusKey) => {
           const config = LEAD_STATUSES[statusKey];
           const statusLeads = getFilteredLeadsByStatus(statusKey);
           const statusTotal = statusLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);

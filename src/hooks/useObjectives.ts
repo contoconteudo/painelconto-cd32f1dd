@@ -4,7 +4,7 @@ import { Objective, ProgressLog, ObjectiveStatus } from "@/types";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
-import { DEMO_MODE, MOCK_OBJECTIVES } from "@/data/mockData";
+import { DEMO_MODE, MOCK_OBJECTIVES, MOCK_LEADS, MOCK_CLIENTS } from "@/data/mockData";
 
 function calculateStatus(currentValue: number, targetValue: number, endDate: string | null): ObjectiveStatus {
   if (!endDate || !targetValue) return "em_andamento";
@@ -25,6 +25,44 @@ function calculateStatus(currentValue: number, targetValue: number, endDate: str
   return "atrasado";
 }
 
+// Calcula valor automático baseado na fonte de dados
+function getAutoValue(valueType: string | null, spaceId: string): number {
+  if (!valueType || valueType === "none") return 0;
+  
+  if (DEMO_MODE) {
+    switch (valueType) {
+      case "crm_pipeline": {
+        // Soma de leads em negociação (exceto ganho/perdido)
+        const activeStatuses = ["novo", "contato", "reuniao_agendada", "reuniao_feita", "proposta", "negociacao"];
+        return MOCK_LEADS
+          .filter(l => l.space_id === spaceId && activeStatuses.includes(l.status))
+          .reduce((sum, l) => sum + (l.value || 0), 0);
+      }
+      case "crm_won": {
+        // Soma de leads ganhos
+        return MOCK_LEADS
+          .filter(l => l.space_id === spaceId && l.status === "ganho")
+          .reduce((sum, l) => sum + (l.value || 0), 0);
+      }
+      case "clients_mrr": {
+        // MRR total de clientes ativos
+        return MOCK_CLIENTS
+          .filter(c => c.space_id === spaceId && c.status === "ativo")
+          .reduce((sum, c) => sum + (c.monthly_value || 0), 0);
+      }
+      case "clients_count": {
+        // Quantidade de clientes ativos
+        return MOCK_CLIENTS
+          .filter(c => c.space_id === spaceId && c.status === "ativo")
+          .length;
+      }
+      default:
+        return 0;
+    }
+  }
+  return 0;
+}
+
 export function useObjectives() {
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +78,18 @@ export function useObjectives() {
       const filteredObjectives = currentCompany 
         ? MOCK_OBJECTIVES.filter(o => o.space_id === currentCompany)
         : MOCK_OBJECTIVES;
-      setObjectives(filteredObjectives);
+      
+      // Calcular valores automáticos para metas comerciais
+      const objectivesWithAutoValues = filteredObjectives.map(obj => {
+        if (obj.is_commercial && obj.value_type && obj.value_type !== "none") {
+          const autoValue = getAutoValue(obj.value_type, obj.space_id);
+          const newStatus = calculateStatus(autoValue, obj.target_value || 0, obj.end_date);
+          return { ...obj, current_value: autoValue, status: newStatus };
+        }
+        return obj;
+      });
+      
+      setObjectives(objectivesWithAutoValues);
       setIsLoading(false);
       return;
     }
@@ -58,11 +107,16 @@ export function useObjectives() {
   ): Promise<Objective | null> => {
     // MODO DEMO: adiciona localmente
     if (DEMO_MODE) {
+      // Calcular valor inicial para metas automáticas
+      const initialValue = data.is_commercial && data.value_type 
+        ? getAutoValue(data.value_type, data.space_id || currentCompany || "conto")
+        : 0;
+      
       const newObjective: Objective = {
         ...data,
         id: `obj-${Date.now()}`,
-        current_value: 0,
-        status: "em_andamento",
+        current_value: initialValue,
+        status: calculateStatus(initialValue, data.target_value || 0, data.end_date),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         progressLogs: [],
@@ -74,7 +128,7 @@ export function useObjectives() {
 
     toast.error("Modo produção desativado.");
     return null;
-  }, []);
+  }, [currentCompany]);
 
   const updateObjective = useCallback(async (
     id: string, 
