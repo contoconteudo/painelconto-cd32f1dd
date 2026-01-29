@@ -23,6 +23,13 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    // Prevenir múltiplas instâncias de React
+    dedupe: ["react", "react-dom", "react/jsx-runtime"],
+  },
+  
+  // Otimização de dependências
+  optimizeDeps: {
+    include: ["react", "react-dom", "react/jsx-runtime"],
   },
   
   // Configurações de build para produção
