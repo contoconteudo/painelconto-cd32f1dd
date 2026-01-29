@@ -7,6 +7,10 @@
   "background_color": "#141414",
   "theme_color": "#c4378f",
   "orientation": "portrait-primary",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "scope": "/",
+  "id": "/",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -19,9 +23,29 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "categories": ["business", "productivity"],
-  "screenshots": [],
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "CRM",
+      "short_name": "CRM",
+      "url": "/crm",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }
